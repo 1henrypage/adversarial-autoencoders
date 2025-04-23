@@ -18,6 +18,7 @@ dependencies = [
 
 [tool.poetry]
 packages = [{include = "adversarial_autoencoder", from = "src"}]
+package-mode=false
 
 
 [build-system]
