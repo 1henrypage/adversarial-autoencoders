@@ -87,7 +87,7 @@ class AdversarialAutoencoder(nn.Module):
 
 
     # we assume gaussian prior, if you want to change this, change it.
-    def train(self, data_loader, epochs, prior_std=5.0):
+    def train_mbgd(self, data_loader, epochs, prior_std=5.0):
         for epoch in range(epochs):
 
             total_recon_loss = 0
