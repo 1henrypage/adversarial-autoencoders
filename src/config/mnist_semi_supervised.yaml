@@ -1,0 +1,44 @@
+# config/mnist_semi_supervised.yaml
+seed: 42
+device: cuda
+log_dir: runs/mnist_semi/
+save_model: true
+save_dir: checkpoints/mnist/
+
+# Dataset
+dataset: MNIST
+data_root: data/
+num_classes: 10
+image_size: 28
+input_channels: 1
+
+# Semi-supervised setup
+#semi_supervised: true
+labeled_fraction: 0.02  # ~1000 labels
+
+# Model
+hidden_dim: 1000
+latent_dim: 10
+style_dim: 10
+use_gaussian_prior: true
+
+# Training
+epochs: 5000
+batch_size: 100
+noise_std: 0.3
+
+# Optimizer
+lr_reconstruction: 0.01
+lr_reconstruction_decay_epochs: [50, 1000]
+lr_semi_supervised: 0.1
+lr_adv: 0.1
+lr_adv_decay_epochs: [50, 1000]
+momentum_recon: 0.9
+momentum_adv: 0.1
+
+# Discriminator
+disc_hidden_dim: 1000
+
+# Evaluation
+eval_interval: 100
+parzen_num_samples: 10000

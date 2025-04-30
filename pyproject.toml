@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Implementations and Extensions for Generative Modelling"
 authors = [
     {name = "Henry Page", email = "dev@henrypage.com"},
+    {name = "Danae Savvidi", email = "danaesavvidi@gmail.com"}
 ]
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
@@ -14,6 +15,7 @@ dependencies = [
     "matplotlib>=3.10.1",
     "tensorboard>=2.19.0",
     "torchvision>=0.21.0",
+    "scikit-learn (>=1.6.1,<2.0.0)"
 ]
 
 [tool.poetry]
