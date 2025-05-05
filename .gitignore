@@ -1,7 +1,13 @@
+# custom
+src/adversarial_autoencoder/data/
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
+
+*.pth
 
 # C extensions
 *.so
@@ -81,6 +87,7 @@ target/
 # IPython
 profile_default/
 ipython_config.py
+
 
 # pyenv
 #   For a library or package, you might want to ignore these files since the code is
