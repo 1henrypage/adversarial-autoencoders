@@ -61,7 +61,7 @@ class Discriminator(nn.Module):
 
 
 class AdversarialAutoencoder(nn.Module):
-    def __init__(self, input_dim, ae_hidden, dc_hidden, latent_dim, recon_loss_fn, lr=2e-4, use_decoder_sigmoid=True, device="cuda"):
+    def __init__(self, input_dim, ae_hidden, dc_hidden, latent_dim, recon_loss_fn, init_recon_lr, init_gen_lr, init_disc_lr, use_decoder_sigmoid=True, device="cuda"):
         super(AdversarialAutoencoder, self).__init__()
         self.device = device
         self.encoder = Encoder(input_dim, ae_hidden, latent_dim).to(device)
@@ -72,14 +72,22 @@ class AdversarialAutoencoder(nn.Module):
         self.decoder.apply(weights_init)
         self.discriminator.apply(weights_init)
 
-        self.ae_opt = optim.Adam(
+        self.recon_opt = torch.optim.SGD(
             list(self.encoder.parameters()) + list(self.decoder.parameters()),
-            lr=lr,
+            lr=init_recon_lr,
+            momentum=0.9
         )
 
-        self.dc_opt = optim.Adam(
+        self.gen_opt = torch.optim.SGD(
+            self.encoder.parameters(),
+            lr=init_gen_lr,
+            momentum=0.1
+        )
+
+        self.disc_opt = torch.optim.SGD(
             self.discriminator.parameters(),
-            lr=lr
+            lr=init_disc_lr,
+            momentum=0.1
         )
 
         self.recon_loss = recon_loss_fn
@@ -90,6 +98,17 @@ class AdversarialAutoencoder(nn.Module):
     def train_mbgd(self, data_loader, epochs, prior_std=5.0):
         for epoch in range(epochs):
 
+            # adjust this if your experiment does different dynamic LRs
+            if epoch == 50:
+                self.recon_opt.param_groups[0]['lr'] = 0.001
+                self.gen_opt.param_groups[0]['lr'] = 0.01
+                self.disc_opt.param_groups[0]['lr'] = 0.01
+            elif epoch == 1000:
+                self.recon_opt.param_groups[0]['lr'] = 0.0001
+                self.gen_opt.param_groups[0]['lr'] = 0.001
+                self.disc_opt.param_groups[0]['lr'] = 0.001
+
+
             total_recon_loss = 0
             total_disc_loss = 0
             total_gen_loss = 0
@@ -97,18 +116,16 @@ class AdversarialAutoencoder(nn.Module):
             for batch_idx, (x, _) in enumerate(data_loader):
                 x = x.to(self.device)
 
-                # recon
-                self.ae_opt.zero_grad()
+                # === RECON PHASE ====
+                self.recon_opt.zero_grad()
                 z = self.encoder(x)
                 x_hat = self.decoder(z)
-
                 recon_loss = self.recon_loss(x_hat, x)
                 recon_loss.backward()
-                self.ae_opt.step()
+                self.recon_opt.step()
 
-                # part 1: backprop through discriminator
-                self.dc_opt.zero_grad()
-
+                # === DISCRIMINATOR REGULARISATION ===
+                self.disc_opt.zero_grad()
                 z_real = torch.randn(x.size(0), z.size(1)).to(self.device) * prior_std
                 d_real = self.discriminator(z_real)
                 d_real_loss = self.adv_loss(d_real, torch.ones_like(d_real))
@@ -119,15 +136,15 @@ class AdversarialAutoencoder(nn.Module):
 
                 disc_loss = d_real_loss + d_fake_loss
                 disc_loss.backward()
-                self.dc_opt.step()
+                self.disc_opt.step()
 
-                # part 2: backprop through generator
-                self.ae_opt.zero_grad()
+                #  === GENERATOR REGULARISATION ===
+                self.gen_opt.zero_grad()
                 z = self.encoder(x)
                 d_pred = self.discriminator(z)
                 gen_loss = self.adv_loss(d_pred, torch.ones_like(d_pred))
                 gen_loss.backward()
-                self.ae_opt.step()
+                self.gen_opt.step()
 
                 total_recon_loss += recon_loss.item()
                 total_disc_loss += disc_loss.item()
