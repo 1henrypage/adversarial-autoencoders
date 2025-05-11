@@ -61,7 +61,7 @@ class Discriminator(nn.Module):
 
 
 class AdversarialAutoencoder(nn.Module):
-    def __init__(self, input_dim, ae_hidden, dc_hidden, latent_dim, recon_loss_fn, lr=2e-4, use_decoder_sigmoid=True, device="cuda"):
+    def __init__(self, input_dim, ae_hidden, dc_hidden, latent_dim, recon_loss_fn, initial_lr=2e-4, use_decoder_sigmoid=True, device="cuda"):
         super(AdversarialAutoencoder, self).__init__()
         self.device = device
         self.encoder = Encoder(input_dim, ae_hidden, latent_dim).to(device)
@@ -74,12 +74,12 @@ class AdversarialAutoencoder(nn.Module):
 
         self.ae_opt = optim.Adam(
             list(self.encoder.parameters()) + list(self.decoder.parameters()),
-            lr=lr,
+            lr=initial_lr,
         )
 
         self.dc_opt = optim.Adam(
             self.discriminator.parameters(),
-            lr=lr
+            lr=initial_lr
         )
 
         self.recon_loss = recon_loss_fn
