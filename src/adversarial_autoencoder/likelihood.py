@@ -20,7 +20,8 @@ def cross_validate_sigma(samples, sigma_range, n_folds=5):
     grid = GridSearchCV(
         KernelDensity(kernel='gaussian'),
         {'bandwidth': sigma_range},
-        cv=n_folds
+        cv=n_folds,
+        verbose=3
     )
     grid.fit(samples)
     return grid.best_params_['bandwidth']
