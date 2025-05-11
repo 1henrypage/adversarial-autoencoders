@@ -9,13 +9,13 @@ import numpy as np
 from sklearn.model_selection import GridSearchCV
 from sklearn.neighbors import KernelDensity
 
-def cross_validate_sigma(samples, sigma_range, n_folds=5):
+def cross_validate_sigma(real_data, sigma_range, n_folds=5):
     """
     Cross-validates sigma (kernel bandwidth) using a validation dataset.
     """
     # Convert from torch to numpy if needed
-    if hasattr(samples, 'detach'):
-        samples = samples.detach().cpu().numpy()
+    if hasattr(real_data, 'detach'):
+        real_data = real_data.detach().cpu().numpy()
 
     grid = GridSearchCV(
         KernelDensity(kernel='gaussian'),
@@ -23,7 +23,7 @@ def cross_validate_sigma(samples, sigma_range, n_folds=5):
         cv=n_folds,
         verbose=3
     )
-    grid.fit(samples)
+    grid.fit(real_data)
     return grid.best_params_['bandwidth']
 
 def estimate_log_likelihood(samples, test_data, sigma):
