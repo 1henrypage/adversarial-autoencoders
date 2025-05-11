@@ -156,6 +156,14 @@ class AdversarialAutoencoder(nn.Module):
                   f"Gen Loss: {total_gen_loss / len(data_loader):.4f}\t)"
             )
 
+
+    def generate_samples(self, n: int , prior_std: float = 5.0) -> torch.Tensor:
+        with torch.no_grad():
+            z = torch.randn(n, self.encoder.fc[-1].out_features).to(self.device) * prior_std
+            samples = self.decoder(z)
+
+        return samples
+
     def save_weights(self, path_prefix="aae_weights"):
         """
         Saves the weights of the encoder, decoder, and discriminator.
