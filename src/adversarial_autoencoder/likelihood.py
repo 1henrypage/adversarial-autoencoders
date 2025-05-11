@@ -9,22 +9,58 @@ import numpy as np
 from sklearn.model_selection import GridSearchCV
 from sklearn.neighbors import KernelDensity
 
-def cross_validate_sigma(real_data, sigma_range, n_folds=5):
+def log_likelihood_parzen(samples, data, sigma, batch_size=100):
     """
-    Cross-validates sigma (kernel bandwidth) using a validation dataset.
+    Estimate the log-likelihood of `data` under a Parzen window estimator
+    fitted to `samples`, using Gaussian kernels with bandwidth `sigma`.
     """
-    # Convert from torch to numpy if needed
-    if hasattr(real_data, 'detach'):
-        real_data = real_data.detach().cpu().numpy()
 
-    grid = GridSearchCV(
-        KernelDensity(kernel='gaussian'),
-        {'bandwidth': sigma_range},
-        cv=n_folds,
-        verbose=3
-    )
-    grid.fit(real_data)
-    return grid.best_params_['bandwidth']
+    if hasattr(samples, 'detach'):
+        samples = samples.detach().cpu().numpy()
+    if hasattr(data, 'detach'):
+        data = data.detach().cpu().numpy()
+
+    kde = KernelDensity(kernel='gaussian', bandwidth=sigma)
+    kde.fit(samples)
+
+    log_probs = []
+    n = data.shape[0]
+    for i in range(0, n, batch_size):
+        batch = data[i:i+batch_size]
+        log_p = kde.score_samples(batch)  # log-likelihoods
+        log_probs.append(log_p)
+
+    log_probs = np.concatenate(log_probs)
+    return log_probs.mean()
+
+def cross_validate_sigma(samples, validation_dataset, sigma_range, batch_size=100):
+    """
+    Cross-validate the kernel bandwidth (sigma) using the validation set.
+
+    Args:
+        samples (np.ndarray): Synthetic data from the model (num_samples x dim).
+        validation_dataset (np.ndarray): Real validation data (num_valid x dim).
+        sigma_range (list or np.ndarray): Candidate sigmas to evaluate.
+        batch_size (int): Batch size for log-likelihood computation.
+
+    Returns:
+        float: Best sigma (highest log-likelihood).
+    """
+    best_ll = -np.inf
+    best_sigma = None
+
+    for sigma in sigma_range:
+        print(f"Evaluating sigma = {sigma}")
+        ll = log_likelihood_parzen(samples, validation_dataset, sigma, batch_size)
+        print(f"Sigma: {sigma:.5f}, Log-Likelihood: {ll:.5f}")
+        if ll > best_ll:
+            best_ll = ll
+            best_sigma = sigma
+
+    print(f"Best sigma: {best_sigma}")
+
+    return best_sigma
+
 
 def estimate_log_likelihood(samples, test_data, sigma):
     """
@@ -42,20 +78,3 @@ def estimate_log_likelihood(samples, test_data, sigma):
     return np.mean(log_probs), np.std(log_probs) / np.sqrt(len(test_data))
 
 
-# Example usage:
-# G_samples: samples generated from generative model G (n_samples x n_features)
-# X_val: validation set (for cross-validating sigma)
-# X_test: test set (to compute log-likelihood)
-
-# Assume these arrays are available (replace with actual data)
-# G_samples = np.array(...)  # generated samples
-# X_val = np.array(...)      # validation data
-# X_test = np.array(...)     # test data
-
-# Parameters
-# sigma_range = np.logspace(-1, 1, 20)  # Example range from 0.1 to 10
-
-# sigma = cross_validate_sigma(G_samples, X_val, sigma_range)
-# log_likelihood_mean, log_likelihood_se = estimate_log_likelihood(G_samples, X_test, sigma)
-
-# print(f"Log-likelihood estimate: {log_likelihood_mean:.2f} ± {log_likelihood_se:.2f}")
