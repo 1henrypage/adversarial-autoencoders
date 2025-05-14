@@ -6,11 +6,8 @@ import torch.optim as optim
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 
-def weights_init(m):
-    if isinstance(m, nn.Linear):
-        nn.init.normal_(m.weight, mean=0.0, std=0.01)
-        if m.bias is not None:
-            nn.init.zeros_(m.bias)
+from src.adversarial_autoencoder.components import load_weights, save_weights
+
 
 class Encoder(nn.Module):
     def __init__(self, input_dim: int, ae_hidden: int, output_dim: int) -> None:
@@ -164,36 +161,10 @@ class AdversarialAutoencoder(nn.Module):
 
         return samples
 
-    def save_weights(self, path_prefix="aae_weights"):
-        """
-        Saves the weights of the encoder, decoder, and discriminator.
-
-        Args:
-            path_prefix (str): Prefix for the saved file paths. Files will be saved as:
-                - <path_prefix>_encoder.pth
-                - <path_prefix>_decoder.pth
-                - <path_prefix>_discriminator.pth
-        """
-        torch.save(self.encoder.state_dict(), f"{path_prefix}_encoder.pth")
-        torch.save(self.decoder.state_dict(), f"{path_prefix}_decoder.pth")
-        torch.save(self.discriminator.state_dict(), f"{path_prefix}_discriminator.pth")
-        print(f"Weights saved to {path_prefix}_*.pth")
-
-
     def load_weights(self, path_prefix="aae_weights"):
-        """
-        Loads the weights of the encoder, decoder, and discriminator from files.
+        load_weights(self.encoder, self.decoder, self.discriminator, self.device, path_prefix=path_prefix)
 
-        Args:
-            path_prefix (str): Prefix for the saved file paths. Expected files are:
-                - <path_prefix>_encoder.pth
-                - <path_prefix>_decoder.pth
-                - <path_prefix>_discriminator.pth
-        """
-        self.encoder.load_state_dict(torch.load(f"{path_prefix}_encoder.pth", map_location=self.device))
-        self.decoder.load_state_dict(torch.load(f"{path_prefix}_decoder.pth", map_location=self.device))
-        self.discriminator.load_state_dict(torch.load(f"{path_prefix}_discriminator.pth", map_location=self.device))
-        print(f"Weights loaded from {path_prefix}_*.pth")
-
+    def save_weights(self, path_prefix="aae_weights"):
+        save_weights(self.encoder, self.decoder, self.discriminator, path_prefix=path_prefix)
 
 
