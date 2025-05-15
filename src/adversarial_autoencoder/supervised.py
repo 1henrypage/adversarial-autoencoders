@@ -37,7 +37,6 @@ class Decoder(nn.Module):
         self.fc = nn.Sequential(*layers)
 
     def forward(self, z):
-          # Concatenate style z and class y
         return self.fc(z)
 
 
@@ -117,11 +116,10 @@ class SupervisedAdversarialAutoencoder(nn.Module):
                 x = x.to(self.device)
                 labels = labels.to(self.device)
                 y_onehot = F.one_hot(labels, num_classes=self.num_classes).float()
+                # Label vs One-hot encoding
                 # print(f"Labels: {labels[:4]}")
                 # print(f"One-hot: {y_onehot[:4]}")
-                # with torch.no_grad():
-                #     z_inspect = self.encoder(x)
-                #     print(f"[Epoch {epoch}] z mean: {z_inspect.mean():.4f}, z std: {z_inspect.std():.4f}")
+                print(f"x shape: {x.shape}, y_onehot shape: {y_onehot.shape}, labels shape: {labels.shape}")
 
                 # # === Add Gaussian noise during training ===
                 if self.training:  # Ensure noise is added only during training mode
@@ -136,13 +134,6 @@ class SupervisedAdversarialAutoencoder(nn.Module):
                 recon_loss = self.recon_loss(x_hat, x)
                 recon_loss.backward()
                 self.recon_opt.step()
-
-                # if batch_idx == 1:  # Display every 100 batches
-                #     output_img = x_hat[0].detach().cpu().view(1, 28, 28)  # Detach from graph, move to CPU, reshape to 28x28
-                #     plt.imshow(output_img.squeeze(), cmap="gray")  # Squeeze to remove unnecessary dimension
-                #     plt.title(f"Reconstruction")
-                #     plt.axis('off')
-                #     plt.show()
 
                 # === DISCRIMINATOR ===
                 self.disc_opt.zero_grad()
@@ -175,89 +166,6 @@ class SupervisedAdversarialAutoencoder(nn.Module):
             #            f"Disc Loss: {total_disc_loss / len(data_loader):.4f}|\t"
             #            f"Gen Loss: {total_gen_loss / len(data_loader):.4f}|\t"
             #            )
-
-    def generate_sample(self, x, label, prior_std: float = 1.0) -> torch.Tensor:
-        """Generate samples for a specific class
-        Args:
-            n: Number of samples to generate
-            class_id: Class ID for which to generate samples
-            prior_std: Standard deviation for the Gaussian prior
-        Returns:
-            Tensor of generated images with shape (n, 1, 28, 28)
-        """
-        with (torch.no_grad()):
-            x = x.to(self.device)
-            label = label.to(self.device)
-            y_onehot = F.one_hot(label, num_classes=self.num_classes).float()
-
-            self.disc_opt.zero_grad()
-            z = torch.randn(x.size(0), self.latent_dim).to(self.device) * prior_std
-            z_cat = torch.cat([z, y_onehot], dim=1)
-            sample = self.decoder(z_cat)
-
-            return sample.view(-1, 1, 28, 28)
-
-    def generate_sample_from_test(self, test_loader, n_variations=5, prior_std=5.0):
-        """Generate sample variations for one test image"""
-        self.eval()
-
-        # Get one test sample
-        test_images, test_labels = next(iter(test_loader))
-        test_image = test_images[1].to(self.device)  # Keep as batch of 1
-        test_image = test_image.view(test_image.size(0), -1)  # Flatten the image
-        test_label = test_labels[1].to(self.device)
-        y_onehot = F.one_hot(test_label, num_classes=self.num_classes).float()
-
-        # Get deterministic encoding
-        with torch.no_grad():
-            z_original = self.encoder(test_image)
-
-            # Generate variations by perturbing the latent code
-            samples = []
-            for _ in range(n_variations):
-                # Create slightly perturbed latent code
-                z_perturbed = z_original + torch.randn_like(z_original) * prior_std
-                # z = torch.randn(n, self.encoder.fc[-1].out_features).to(self.device) * prior_std
-                z_cat = torch.cat([z_perturbed, y_onehot], dim=1)
-                sample = self.decoder(z_cat)
-                samples.append(sample)
-
-            # Add original reconstruction
-            z_cat = torch.cat([z_original, y_onehot], dim=1)
-            original_recon = self.decoder(z_cat)
-            samples.insert(0, original_recon)
-
-        # Prepare visualization
-        samples = torch.cat(samples).view(-1, 1, 28, 28)
-        original_image = test_image.view(1, 28, 28).cpu()
-
-        # Plot comparison
-        plt.figure(figsize=(n_variations + 2, 2))
-
-        # Show original
-        plt.subplot(1, n_variations + 2, 1)
-        plt.imshow(original_image[0], cmap='gray')
-        plt.title("Original")
-        plt.axis('off')
-
-        # Show reconstruction
-        plt.subplot(1, n_variations + 2, 2)
-        plt.imshow(samples[0].permute(1, 2, 0).cpu(), cmap='gray')
-        plt.title("Recon")
-        plt.axis('off')
-
-        # Show variations
-        for i in range(1, n_variations + 1):
-            plt.subplot(1, n_variations + 2, i + 2)
-            plt.imshow(samples[i].permute(1, 2, 0).cpu(), cmap='gray')
-            plt.title(f"Var {i}")
-            plt.axis('off')
-
-        plt.suptitle(f"Class {test_label.item()} Samples")
-        plt.tight_layout()
-        plt.show()
-
-        return samples
 
 
     def save_weights(self, path_prefix="aae_weights"):
