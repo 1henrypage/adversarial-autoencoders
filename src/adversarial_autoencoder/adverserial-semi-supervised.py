@@ -6,7 +6,6 @@ from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 from adversarial import Encoder, Decoder, Discriminator, weights_init
 
-
 class SemiSupervisedAutoEncoderOptions(object):
     def __init__(
             self, 
@@ -141,10 +140,10 @@ class SemiSupervisedAdversarialAutoencoder(nn.Module):
         return z[:self.options.latent_dim_categorical], z[self.options.latent_dim_categorical:]
         
     def sample_latent_prior_gaussian(self, n: int , prior_std: float = 5.0) -> torch.Tensor:
-        return torch.randn(n, self.encoder.fc[-1].out_features).to(self.device) * prior_std
+        return torch.randn(n, self.options.latent_dim_style).to(self.device) * prior_std
     
     def sample_latent_prior_categorical(self, n: int) -> torch.Tensor:
-        latent_dim = self.options.latent_dim_categorical0
+        latent_dim = self.options.latent_dim_categorical
         labels = torch.randint(0, latent_dim, (n,), device=self.device)
         return F.one_hot(labels, num_classes=latent_dim).float().to(self.device)
 
