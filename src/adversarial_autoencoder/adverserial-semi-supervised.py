@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import torch.nn.functional as F
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 from adversarial import Encoder, Decoder, Discriminator, weights_init
@@ -71,6 +72,8 @@ class SemiSupervisedAdversarialAutoencoder(nn.Module):
         
         super(SemiSupervisedAdversarialAutoencoder, self).__init__()
 
+        self.options = options
+
         self.device = options.device
         self.encoder = Encoder(options.input_dim, options.ae_hidden_dim, options.latent_dim_categorical + options.latent_dim_style).to(options.device)
         self.decoder = Decoder(options.latent_dim_categorical + options.latent_dim_style, options.ae_hidden_dim, options.input_dim, options.use_decoder_sigmoid).to(options.device)
@@ -83,27 +86,67 @@ class SemiSupervisedAdversarialAutoencoder(nn.Module):
         self.discriminator_categorical.apply(weights_init)
         self.discriminator_style.apply(weights_init)
 
-        # self.recon_opt = torch.optim.SGD(
-        #     list(self.encoder.parameters()) + list(self.decoder.parameters()),
-        #     lr=init_recon_lr,
-        #     momentum=0.9
-        # )
+        # optimazer for reconstruction phase
+        self.recon_opt = torch.optim.SGD(
+            list(self.encoder.parameters()) + list(self.decoder.parameters()),
+            lr=options.init_recon_lr,
+            momentum=0.9
+        )
 
-        # self.gen_opt = torch.optim.SGD(
-        #     self.encoder.parameters(),
-        #     lr=init_gen_lr,
-        #     momentum=0.1
-        # )
+        # optimizer for semi-supervised phase
+        self.semi_supervised_opt = torch.optim.SGD(
+            self.encoder.parameters(),
+            lr=options.init_semi_sup_lr
+            momentum=0.9
+        )
 
-        # self.disc_opt = torch.optim.SGD(
-        #     self.discriminator.parameters(),
-        #     lr=init_disc_lr,
-        #     momentum=0.1
-        # )
+        # optimizer for generative phase
+        self.gen_opt = torch.optim.SGD(
+            self.encoder.parameters(),
+            lr=options.init_gen_lr,
+            momentum=0.1
+        )
 
-        # self.recon_loss = recon_loss_fn
-        # self.adv_loss = nn.BCEWithLogitsLoss()
+        # optimizer for categorical discriminator 
+        self.disc_cat_opt = torch.optim.SGD(
+            self.discriminator.parameters(),
+            lr=options.init_disc_lr,
+            momentum=0.1
+        )
 
+        # optimizer for style discriminator
+        self.disc_style_opt = torch.optim.SGD(
+            self.discriminator.parameters(),
+            lr=options.init_disc_lr,
+            momentum=0.1
+        )
+
+        self.recon_loss = options.recon_loss_fn
+        self.semi_supervised_loss = options.semi_supervised_loss_fn
+        self.adv_loss_cat = nn.BCEWithLogitsLoss()
+        self.adv_loss_style = nn.BCEWithLogitsLoss()
+
+
+    def foreward_reconstruction(self, x):
+        z = self.encoder(x)
+        x_hat = self.decoder(z)
+        return x_hat
+    
+    def foreward_semi_supervised(self, x):
+        z = self.encoder(x)
+        return z[:self.options.latent_dim_categorical]
+    
+    def foreward_adversarial(self, x):
+        z = self.encoder(x)
+        return z[:self.options.latent_dim_categorical], z[self.options.latent_dim_categorical:]
+        
+    def sample_latent_prior_gaussian(self, n: int , prior_std: float = 5.0) -> torch.Tensor:
+        return torch.randn(n, self.encoder.fc[-1].out_features).to(self.device) * prior_std
+    
+    def sample_latent_prior_categorical(self, n: int) -> torch.Tensor:
+        latent_dim = self.options.latent_dim_categorical0
+        labels = torch.randint(0, latent_dim, (n,), device=self.device)
+        return F.one_hot(labels, num_classes=latent_dim).float().to(self.device)
 
     # # we assume gaussian prior, if you want to change this, change it.
     # def train_mbgd(self, data_loader, epochs, prior_std=5.0):
@@ -168,12 +211,6 @@ class SemiSupervisedAdversarialAutoencoder(nn.Module):
     #         )
 
 
-    # def generate_samples(self, n: int , prior_std: float = 5.0) -> torch.Tensor:
-    #     with torch.no_grad():
-    #         z = torch.randn(n, self.encoder.fc[-1].out_features).to(self.device) * prior_std
-    #         samples = self.decoder(z)
-
-    #     return samples
 
     # def save_weights(self, path_prefix="aae_weights"):
     #     """
