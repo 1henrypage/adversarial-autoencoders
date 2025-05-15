@@ -147,6 +147,43 @@ class SemiSupervisedAdversarialAutoencoder(nn.Module):
         labels = torch.randint(0, latent_dim, (n,), device=self.device)
         return F.one_hot(labels, num_classes=latent_dim).float().to(self.device)
 
+
+    def train(self, data_loader, epochs, prioir_std-5.0):
+        for epoch in range(epochs):
+
+            # adjust this if your experiment does different dynamic LRs
+            if epoch == 50:
+                self.recon_opt.param_groups[0]['lr'] = 0.001
+                self.semi_supervised_opt.param_groups[0]['lr'] = 0.001
+                self.gen_opt.param_groups[0]['lr'] = 0.01
+                self.disc_style_opt.param_groups[0]['lr'] = 0.01
+                self.disc_cat_opt.param_groups[0]['lr'] = 0.01
+                
+            elif epoch == 1000:
+                self.recon_opt.param_groups[0]['lr'] = 0.0001
+                self.semi_supervised_opt.param_groups[0]['lr'] = 0.0001
+                self.gen_opt.param_groups[0]['lr'] = 0.001
+                self.disc_style_opt.param_groups[0]['lr'] = 0.001
+                self.disc_cat_opt.param_groups[0]['lr'] = 0.001
+
+
+            total_recon_loss = 0
+            total_semi_supervised_loss = 0
+
+            total_disc_style_loss = 0
+            total_gen_style_loss = 0
+
+            total_disc_cat_loss = 0
+            total_gen_cat_loss = 0
+
+            for batch_idx, (x, y) in enumerate(data_loader):
+                x = x.to(self.device)
+                y = y.to(self.device)
+
+            # TODO: finish up training stages for semi-supervised
+            
+
+
     # # we assume gaussian prior, if you want to change this, change it.
     # def train_mbgd(self, data_loader, epochs, prior_std=5.0):
     #     for epoch in range(epochs):
