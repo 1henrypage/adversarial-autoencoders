@@ -95,7 +95,7 @@ class SemiSupervisedAdversarialAutoencoder(nn.Module):
         # optimizer for semi-supervised phase
         self.semi_supervised_opt = torch.optim.SGD(
             self.encoder.parameters(),
-            lr=options.init_semi_sup_lr
+            lr=options.init_semi_sup_lr,
             momentum=0.9
         )
 
@@ -129,6 +129,8 @@ class SemiSupervisedAdversarialAutoencoder(nn.Module):
     def foreward_reconstruction(self, x):
         z = self.encoder(x)
         x_hat = self.decoder(z)
+        # TODO: add ssoftmax for categorical evrywhere, maybe sth like this?
+        x_hat[:self.options.input_dim] = nn.Softmax(x_hat[:self.options.input_dim])
         return x_hat
     
     def foreward_semi_supervised(self, x):
@@ -148,7 +150,7 @@ class SemiSupervisedAdversarialAutoencoder(nn.Module):
         return F.one_hot(labels, num_classes=latent_dim).float().to(self.device)
 
 
-    def train(self, data_loader, epochs, prioir_std-5.0):
+    def train(self, data_loader, epochs, prioir_std=5.0):
         for epoch in range(epochs):
 
             # adjust this if your experiment does different dynamic LRs
