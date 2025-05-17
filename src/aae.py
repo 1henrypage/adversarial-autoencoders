@@ -1,63 +1,9 @@
 
-
 import torch
 import torch.nn as nn
-import torch.optim as optim
-from torchvision import datasets, transforms
-from torch.utils.data import DataLoader
 
-def weights_init(m):
-    if isinstance(m, nn.Linear):
-        nn.init.normal_(m.weight, mean=0.0, std=0.01)
-        if m.bias is not None:
-            nn.init.zeros_(m.bias)
-
-class Encoder(nn.Module):
-    def __init__(self, input_dim: int, ae_hidden: int, output_dim: int) -> None:
-        super(Encoder, self).__init__()
-        self.fc = nn.Sequential(
-            nn.Linear(input_dim, ae_hidden),
-            nn.ReLU(),
-            nn.Linear(ae_hidden, ae_hidden),
-            nn.ReLU(),
-            nn.Linear(ae_hidden, output_dim),  # Linear output
-        )
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.fc(x)
-
-
-class Decoder(nn.Module):
-    def __init__(self, input_dim: int, ae_hidden: int, output_dim: int, use_sigmoid: bool) -> None:
-        super(Decoder, self).__init__()
-        layers = [
-            nn.Linear(input_dim, ae_hidden),
-            nn.ReLU(),
-            nn.Linear(ae_hidden, ae_hidden),
-            nn.ReLU(),
-            nn.Linear(ae_hidden, output_dim)
-        ]
-        if use_sigmoid:
-            layers.append(nn.Sigmoid())
-        self.fc = nn.Sequential(*layers)
-
-    def forward(self, z):
-        return self.fc(z)
-
-
-class Discriminator(nn.Module):
-    def __init__(self, dc_hidden, latent_dim):
-        super(Discriminator, self).__init__()
-        self.fc = nn.Sequential(
-            nn.Linear(latent_dim, dc_hidden),
-            nn.ReLU(),
-            nn.Linear(dc_hidden, dc_hidden),
-            nn.ReLU(),
-            nn.Linear(dc_hidden, 1),
-        )
-
-    def forward(self, z):
-        return self.fc(z).squeeze()
+from src.utils import load_weights, save_weights, weights_init
+from src.components import Encoder, Decoder, Discriminator
 
 
 class AdversarialAutoencoder(nn.Module):
@@ -164,36 +110,8 @@ class AdversarialAutoencoder(nn.Module):
 
         return samples
 
-    def save_weights(self, path_prefix="aae_weights"):
-        """
-        Saves the weights of the encoder, decoder, and discriminator.
-
-        Args:
-            path_prefix (str): Prefix for the saved file paths. Files will be saved as:
-                - <path_prefix>_encoder.pth
-                - <path_prefix>_decoder.pth
-                - <path_prefix>_discriminator.pth
-        """
-        torch.save(self.encoder.state_dict(), f"{path_prefix}_encoder.pth")
-        torch.save(self.decoder.state_dict(), f"{path_prefix}_decoder.pth")
-        torch.save(self.discriminator.state_dict(), f"{path_prefix}_discriminator.pth")
-        print(f"Weights saved to {path_prefix}_*.pth")
-
-
     def load_weights(self, path_prefix="aae_weights"):
-        """
-        Loads the weights of the encoder, decoder, and discriminator from files.
+        load_weights(self.encoder, self.decoder, self.discriminator, self.device, path_prefix=path_prefix)
 
-        Args:
-            path_prefix (str): Prefix for the saved file paths. Expected files are:
-                - <path_prefix>_encoder.pth
-                - <path_prefix>_decoder.pth
-                - <path_prefix>_discriminator.pth
-        """
-        self.encoder.load_state_dict(torch.load(f"{path_prefix}_encoder.pth", map_location=self.device))
-        self.decoder.load_state_dict(torch.load(f"{path_prefix}_decoder.pth", map_location=self.device))
-        self.discriminator.load_state_dict(torch.load(f"{path_prefix}_discriminator.pth", map_location=self.device))
-        print(f"Weights loaded from {path_prefix}_*.pth")
-
-
-
+    def save_weights(self, path_prefix="aae_weights"):
+        save_weights(self.encoder, self.decoder, self.discriminator, path_prefix=path_prefix)

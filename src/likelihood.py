@@ -1,5 +1,3 @@
-
-
 import numpy as np
 from sklearn.model_selection import GridSearchCV
 from sklearn.neighbors import KernelDensity
@@ -8,6 +6,7 @@ from sklearn.model_selection import KFold
 import numpy as np
 from sklearn.model_selection import GridSearchCV
 from sklearn.neighbors import KernelDensity
+
 
 def log_likelihood_parzen(samples, data, sigma, batch_size=100):
     """
@@ -26,12 +25,13 @@ def log_likelihood_parzen(samples, data, sigma, batch_size=100):
     log_probs = []
     n = data.shape[0]
     for i in range(0, n, batch_size):
-        batch = data[i:i+batch_size]
+        batch = data[i: i + batch_size]
         log_p = kde.score_samples(batch)  # log-likelihoods
         log_probs.append(log_p)
 
     log_probs = np.concatenate(log_probs)
     return log_probs.mean()
+
 
 def cross_validate_sigma(samples, validation_dataset, sigma_range, batch_size=100):
     """
@@ -76,5 +76,3 @@ def estimate_log_likelihood(samples, test_data, sigma):
     kde.fit(samples)
     log_probs = kde.score_samples(test_data)
     return np.mean(log_probs), np.std(log_probs) / np.sqrt(len(test_data))
-
-
