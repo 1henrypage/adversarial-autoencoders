@@ -1,7 +1,7 @@
 # custom
 *.pth
 !src/adversarial_autoencoder/tmp_runs/*.pth
-src/adversarial_autoencoder/data/
+experiments/data/
 
 
 # Byte-compiled / optimized / DLL files
