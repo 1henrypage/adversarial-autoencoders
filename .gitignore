@@ -1,6 +1,7 @@
 # custom
 *.pth
 !src/adversarial_autoencoder/tmp_runs/*.pth
+!experiments/weights/supervised/*.pth
 src/adversarial_autoencoder/data/
 
 
