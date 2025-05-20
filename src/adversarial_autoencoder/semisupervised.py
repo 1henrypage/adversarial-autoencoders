@@ -71,12 +71,14 @@ class SemiSupervisedAdversarialAutoencoder(nn.Module):
         
         super(SemiSupervisedAdversarialAutoencoder, self).__init__()
 
+        options.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
         self.options = options
 
         self.device = options.device
         self.encoder = Encoder(options.input_dim, options.ae_hidden_dim, options.latent_dim_categorical + options.latent_dim_style).to(options.device)
         self.decoder = Decoder(options.latent_dim_categorical + options.latent_dim_style, options.ae_hidden_dim, options.input_dim, options.use_decoder_sigmoid).to(options.device)
-        self.cat_softmax = nn.Softmax(dim=options.latent_dim_categorical)
+        self.cat_softmax = nn.Softmax(dim=1)
 
         self.discriminator_categorical = Discriminator(options.disc_hidden_dim, options.latent_dim_categorical).to(options.device)
         self.discriminator_style = Discriminator(options.disc_hidden_dim, options.latent_dim_style).to(options.device)
@@ -142,15 +144,15 @@ class SemiSupervisedAdversarialAutoencoder(nn.Module):
         # self.adv_loss_style = nn.BCEWithLogitsLoss()
 
 
-    def foreward_reconstruction(self, x):
-        z_cat, z_style = self.foreward_encoder(x)
+    def forward_reconstruction(self, x):
+        z_cat, z_style = self.forward_encoder(x)
         x_hat = self.decoder(torch.cat((z_cat, z_style), dim=1))
         return x_hat
     
-    def foreward_encoder(self, x):
+    def forward_encoder(self, x):
         z = self.encoder(x)
-        z_cat = self.cat_softmax(z[:self.options.latent_dim_categorical])
-        z_style = z[self.options.latent_dim_categorical:]
+        z_cat = self.cat_softmax(z[:, :self.options.latent_dim_categorical])
+        z_style = z[:, self.options.latent_dim_categorical:]
         return z_cat, z_style
         
     def sample_latent_prior_gaussian(self, n: int , prior_std: float = 5.0) -> torch.Tensor:
@@ -169,14 +171,16 @@ class SemiSupervisedAdversarialAutoencoder(nn.Module):
             if epoch == 50:
                 self.recon_opt.param_groups[0]['lr'] = 0.001
                 self.semi_supervised_opt.param_groups[0]['lr'] = 0.001
-                self.gen_opt.param_groups[0]['lr'] = 0.01
+                self.gen_style_opt.param_groups[0]['lr'] = 0.01
+                self.gen_cat_opt.param_groups[0]['lr'] = 0.01
                 self.disc_style_opt.param_groups[0]['lr'] = 0.01
                 self.disc_cat_opt.param_groups[0]['lr'] = 0.01
                 
             elif epoch == 1000:
                 self.recon_opt.param_groups[0]['lr'] = 0.0001
                 self.semi_supervised_opt.param_groups[0]['lr'] = 0.0001
-                self.gen_opt.param_groups[0]['lr'] = 0.001
+                self.gen_style_opt.param_groups[0]['lr'] = 0.001
+                self.gen_cat_opt.param_groups[0]['lr'] = 0.001
                 self.disc_style_opt.param_groups[0]['lr'] = 0.001
                 self.disc_cat_opt.param_groups[0]['lr'] = 0.001
 
@@ -196,7 +200,7 @@ class SemiSupervisedAdversarialAutoencoder(nn.Module):
 
                 # === RECONSTRUCTION PHASE ====
                 self.recon_opt.zero_grad()
-                x_hat = self.foreward_reconstruction(x)
+                x_hat = self.forward_reconstruction(x)
                 recon_loss = self.recon_loss(x_hat, x)
                 recon_loss.backward()
                 self.recon_opt.step()
@@ -209,7 +213,8 @@ class SemiSupervisedAdversarialAutoencoder(nn.Module):
                 d_real_cat = self.discriminator_categorical(z_real_cat)
                 d_real_loss_cat = self.adv_loss(d_real_cat, torch.ones_like(d_real_cat))
 
-                z_fake_cat, _ = self.foreward_encoder(x).detach()
+                z_fake_cat, _ = self.forward_encoder(x)
+                z_fake_cat = z_fake_cat.detach()
                 d_fake_cat = self.discriminator_categorical(z_fake_cat)
                 d_fake_loss_cat = self.adv_loss(d_fake_cat, torch.zeros_like(d_fake_cat))
 
@@ -225,7 +230,8 @@ class SemiSupervisedAdversarialAutoencoder(nn.Module):
                 d_real_style = self.discriminator_style(z_real_style)
                 d_real_loss_style = self.adv_loss(d_real_style, torch.ones_like(d_real_style))
 
-                _, z_fake_style = self.foreward_encoder(x).detach()
+                _, z_fake_style = self.forward_encoder(x)
+                z_fake_style = z_fake_style.detach()
                 d_fake_style = self.discriminator_style(z_fake_style)
                 d_fake_loss_style = self.adv_loss(d_fake_style, torch.zeros_like(d_fake_style))
 
@@ -236,7 +242,7 @@ class SemiSupervisedAdversarialAutoencoder(nn.Module):
                 #  === GENERATOR REGULARISATION ===
                 # doing it kinda jointly, idk if that's right
                 self.gen_cat_opt.zero_grad()
-                z_cat, z_style = self.foreward_encoder(x)
+                z_cat, z_style = self.forward_encoder(x)
 
                 d_pred_cat = self.discriminator_categorical(z_cat)
                 gen_cat_loss = self.adv_loss(d_pred_cat, torch.ones_like(d_pred_cat))
@@ -253,7 +259,7 @@ class SemiSupervisedAdversarialAutoencoder(nn.Module):
                 #  === SEMI-SUPERVISED CLASSIFICATION ===
 
                 self.semi_supervised_opt.zero_grad()
-                y_hat, _ = self.foreward_encoder(x)
+                y_hat, _ = self.forward_encoder(x)
 
                 semi_supervised_loss = self.semi_supervised_loss(y_hat, y)
                 semi_supervised_loss.backward()
