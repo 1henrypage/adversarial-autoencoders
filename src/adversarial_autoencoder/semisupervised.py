@@ -356,3 +356,48 @@ class SemiSupervisedAdversarialAutoencoder(nn.Module):
             preds = probs.argmax(dim=1)
 
         return probs, preds
+    
+
+    def generate_images(self, labels, style_z=None, prior_std=5.0):
+        """
+        Generate images conditioned on digit labels and style codes.
+
+        Args:
+            labels (int or torch.Tensor):
+                - If int: a single digit in [0, latent_dim_categorical-1]
+                - If 1D Tensor of ints: batch of digit labels
+            style_z (torch.Tensor, optional):
+                - If provided: Tensor of shape (batch_size, latent_dim_style)
+                - If None: sampled from Gaussian prior with std=prior_std
+            prior_std (float): std deviation for style prior sampling
+
+        Returns:
+            images (torch.Tensor): shape (batch_size, 1, 28, 28), values in [0,1]
+        """
+        self.eval()
+        with torch.no_grad():
+            
+            if isinstance(labels, int):
+                labels = torch.tensor([labels], device=self.device)
+            else:
+                labels = labels.to(self.device)
+            batch_size = labels.size(0)
+
+            
+            z_cat = F.one_hot(labels, num_classes=self.options.latent_dim_categorical) \
+                     .float().to(self.device)
+
+            
+            if style_z is None:
+                style_z = self.sample_latent_prior_gaussian(batch_size, prior_std)
+            else:
+                style_z = style_z.to(self.device)
+                assert style_z.shape == (batch_size, self.options.latent_dim_style), \
+                       f"Expected style_z of shape {(batch_size, self.options.latent_dim_style)}"
+
+            
+            z = torch.cat([z_cat, style_z], dim=1)
+            x_hat = self.decoder(z)  # shape (batch_size, input_dim)
+            images = x_hat.view(batch_size, 1, 28, 28)
+
+        return images
