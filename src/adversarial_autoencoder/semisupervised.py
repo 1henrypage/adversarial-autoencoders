@@ -7,6 +7,9 @@ from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 from adversarial import Encoder, Decoder, Discriminator, weights_init
 from experiment import AAEExperimentBase
+import os
+
+
 class SemiSupervisedAutoEncoderOptions(object):
     def __init__(
             self, 
@@ -319,6 +322,10 @@ class SemiSupervisedAdversarialAutoencoder(AAEExperimentBase, nn.Module):
                 - <path_prefix>_disc_categorical.pth
                 - <path_prefix>_disc_style.pth
         """
+        directory = os.path.dirname(path_prefix)
+        if directory and not os.path.exists(directory):
+            os.makedirs(directory)
+            
         torch.save(self.encoder.state_dict(), f"{path_prefix}_encoder.pth")
         torch.save(self.decoder.state_dict(), f"{path_prefix}_decoder.pth")
         torch.save(self.discriminator_categorical.state_dict(), f"{path_prefix}_disc_categorical.pth")
