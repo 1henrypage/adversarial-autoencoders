@@ -6,7 +6,7 @@ import torch.nn.functional as F
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 from adversarial import Encoder, Decoder, Discriminator, weights_init
-
+from experiment import AAEExperimentBase
 class SemiSupervisedAutoEncoderOptions(object):
     def __init__(
             self, 
@@ -74,12 +74,11 @@ class SemiSupervisedAutoEncoderOptions(object):
         )
 
 
-class SemiSupervisedAdversarialAutoencoder(nn.Module):
-    def __init__(self, options: SemiSupervisedAutoEncoderOptions):
+class SemiSupervisedAdversarialAutoencoder(AAEExperimentBase, nn.Module):
+    def __init__(self, options: SemiSupervisedAutoEncoderOptions, plot_separately: bool = False):
         
-        super(SemiSupervisedAdversarialAutoencoder, self).__init__()
-        
-        options.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        super().__init__(plot_separately=plot_separately)
+        nn.Module.__init__(self)
 
         self.options = options
 
@@ -202,6 +201,7 @@ class SemiSupervisedAdversarialAutoencoder(nn.Module):
 
             self.train()
             loop = tqdm(train_loader, desc=f"Epoch [{epoch+1}/{epochs}]", leave=False)
+            self.dummy_loop(epoch)
             for batch_idx, (x, y) in enumerate(loop, start=1):
                 x, y = x.to(self.device), y.to(self.device)
 
@@ -294,6 +294,18 @@ class SemiSupervisedAdversarialAutoencoder(nn.Module):
                     total += vy.size(0)
             val_acc = correct / total * 100
             print(f"Validation Accuracy: {val_acc:.2f}%\n")
+
+            self.log_epoch(
+                total_recon_loss / len(train_loader),
+                total_disc_cat_loss / len(train_loader),
+                total_gen_cat_loss / len(train_loader),
+                total_disc_style_loss / len(train_loader),
+                total_gen_style_loss / len(train_loader),
+                total_semi_supervised_loss / len(train_loader),
+                val_acc
+            )
+            self.plot_training(update=True)
+
 
 
     def save_weights(self, path_prefix="aae_weights"):
