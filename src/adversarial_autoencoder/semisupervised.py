@@ -123,15 +123,15 @@ class SemiSupervisedAdversarialAutoencoder(nn.Module):
 
         # optimizer for categorical discriminator 
         self.disc_cat_opt = torch.optim.SGD(
-            self.discriminator.parameters(),
-            lr=options.init_disc_lr,
+            self.discriminator_categorical.parameters(),
+            lr=options.init_disc_categorical_lr,
             momentum=0.1
         )
 
         # optimizer for style discriminator
         self.disc_style_opt = torch.optim.SGD(
-            self.discriminator.parameters(),
-            lr=options.init_disc_lr,
+            self.discriminator_style.parameters(),
+            lr=options.init_disc_style_lr,
             momentum=0.1
         )
 
@@ -162,7 +162,7 @@ class SemiSupervisedAdversarialAutoencoder(nn.Module):
         return F.one_hot(labels, num_classes=latent_dim).float().to(self.device)
 
 
-    def train(self, data_loader, epochs, prioir_std=5.0):
+    def train(self, data_loader, epochs, prior_std=5.0):
         for epoch in range(epochs):
 
             # adjust this if your experiment does different dynamic LRs
