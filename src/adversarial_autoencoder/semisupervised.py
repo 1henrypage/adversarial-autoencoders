@@ -70,7 +70,7 @@ class SemiSupervisedAdversarialAutoencoder(nn.Module):
     def __init__(self, options: SemiSupervisedAutoEncoderOptions):
         
         super(SemiSupervisedAdversarialAutoencoder, self).__init__()
-
+        
         options.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         self.options = options
@@ -239,16 +239,19 @@ class SemiSupervisedAdversarialAutoencoder(nn.Module):
                 disc_loss_style.backward()
                 self.disc_style_opt.step()
 
-                #  === GENERATOR REGULARISATION ===
-                # doing it kinda jointly, idk if that's right
+                #  === GENERATOR REGULARISATION CAT ===
                 self.gen_cat_opt.zero_grad()
-                z_cat, z_style = self.forward_encoder(x)
+                z_cat, _ = self.forward_encoder(x)
 
                 d_pred_cat = self.discriminator_categorical(z_cat)
                 gen_cat_loss = self.adv_loss(d_pred_cat, torch.ones_like(d_pred_cat))
 
                 gen_cat_loss.backward()
                 self.gen_cat_opt.step()
+
+                #  === GENERATOR REGULARISATION STYLE ===
+                self.gen_style_opt.zero_grad()
+                _, z_style = self.forward_encoder(x)
 
                 d_pred_style = self.discriminator_style(z_style)
                 gen_style_loss = self.adv_loss(d_pred_style, torch.ones_like(d_pred_style))
