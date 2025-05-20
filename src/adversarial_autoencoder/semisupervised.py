@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from tqdm.auto import tqdm
 import torch.optim as optim
 import torch.nn.functional as F
 from torchvision import datasets, transforms
@@ -171,7 +172,7 @@ class SemiSupervisedAdversarialAutoencoder(nn.Module):
         return F.one_hot(labels, num_classes=latent_dim).float().to(self.device)
 
 
-    def train(self, data_loader, epochs, prior_std=5.0):
+    def train_mbgd(self, data_loader, epochs, prior_std=5.0):
         for epoch in range(epochs):
 
             # adjust this if your experiment does different dynamic LRs
@@ -201,9 +202,9 @@ class SemiSupervisedAdversarialAutoencoder(nn.Module):
             total_disc_cat_loss = 0
             total_gen_cat_loss = 0
 
-            for batch_idx, (x, y) in enumerate(data_loader):
-                x = x.to(self.device)
-                y = y.to(self.device)
+            loop = tqdm(data_loader, desc=f"Epoch [{epoch+1}/{epochs}]", leave=False)
+            for batch_idx, (x, y) in enumerate(loop, start=1):
+                x, y = x.to(self.device), y.to(self.device)
 
                 # === RECONSTRUCTION PHASE ====
                 self.recon_opt.zero_grad()
@@ -212,96 +213,72 @@ class SemiSupervisedAdversarialAutoencoder(nn.Module):
                 recon_loss.backward()
                 self.recon_opt.step()
 
-
                 # === CATEGORICAL DISCRIMINATOR REGULARISATION ===
                 self.disc_cat_opt.zero_grad()
-
                 z_real_cat = self.sample_latent_prior_categorical(x.size(0))
-                d_real_cat = self.discriminator_categorical(z_real_cat)
-                d_real_loss_cat = self.adv_loss(d_real_cat, torch.ones_like(d_real_cat))
-
+                d_real_loss_cat = self.adv_loss(self.discriminator_categorical(z_real_cat), torch.ones(x.size(0), device=self.device))
                 z_fake_cat, _ = self.forward_encoder(x)
-                z_fake_cat = z_fake_cat.detach()
-                d_fake_cat = self.discriminator_categorical(z_fake_cat)
-                d_fake_loss_cat = self.adv_loss(d_fake_cat, torch.zeros_like(d_fake_cat))
-
-                disc_loss_cat = d_real_loss_cat + d_fake_loss_cat
-                disc_loss_cat.backward()
+                d_fake_loss_cat = self.adv_loss(self.discriminator_categorical(z_fake_cat.detach()), torch.zeros(x.size(0), device=self.device))
+                (d_real_loss_cat + d_fake_loss_cat).backward()
                 self.disc_cat_opt.step()
-
 
                 # === STYLE DISCRIMINATOR REGULARISATION ===
                 self.disc_style_opt.zero_grad()
-
                 z_real_style = self.sample_latent_prior_gaussian(x.size(0))
-                d_real_style = self.discriminator_style(z_real_style)
-                d_real_loss_style = self.adv_loss(d_real_style, torch.ones_like(d_real_style))
-
+                d_real_loss_style = self.adv_loss(self.discriminator_style(z_real_style), torch.ones(x.size(0), device=self.device))
                 _, z_fake_style = self.forward_encoder(x)
-                z_fake_style = z_fake_style.detach()
-                d_fake_style = self.discriminator_style(z_fake_style)
-                d_fake_loss_style = self.adv_loss(d_fake_style, torch.zeros_like(d_fake_style))
-
-                disc_loss_style = d_real_loss_style + d_fake_loss_style
-                disc_loss_style.backward()
+                d_fake_loss_style = self.adv_loss(self.discriminator_style(z_fake_style.detach()), torch.zeros(x.size(0), device=self.device))
+                (d_real_loss_style + d_fake_loss_style).backward()
                 self.disc_style_opt.step()
 
-                #  === GENERATOR REGULARISATION CAT ===
+                # === GENERATOR REGULARISATION ===
                 self.gen_cat_opt.zero_grad()
-                z_cat, _ = self.forward_encoder(x)
-
-                d_pred_cat = self.discriminator_categorical(z_cat)
-                gen_cat_loss = self.adv_loss(d_pred_cat, torch.ones_like(d_pred_cat))
-
+                d_pred_cat = self.discriminator_categorical(self.forward_encoder(x)[0])
+                gen_cat_loss = self.adv_loss(d_pred_cat, torch.ones(x.size(0), device=self.device))
                 gen_cat_loss.backward()
                 self.gen_cat_opt.step()
 
-                #  === GENERATOR REGULARISATION STYLE ===
                 self.gen_style_opt.zero_grad()
-                _, z_style = self.forward_encoder(x)
-
-                d_pred_style = self.discriminator_style(z_style)
-                gen_style_loss = self.adv_loss(d_pred_style, torch.ones_like(d_pred_style))
-
+                d_pred_style = self.discriminator_style(self.forward_encoder(x)[1])
+                gen_style_loss = self.adv_loss(d_pred_style, torch.ones(x.size(0), device=self.device))
                 gen_style_loss.backward()
                 self.gen_style_opt.step()
 
-                #  === SEMI-SUPERVISED CLASSIFICATION ===
-
+                # === SEMI-SUPERVISED CLASSIFICATION ===
                 self.semi_supervised_opt.zero_grad()
                 y_hat, _ = self.forward_encoder(x)
-
                 semi_supervised_loss = self.semi_supervised_loss(y_hat, y)
                 semi_supervised_loss.backward()
                 self.semi_supervised_opt.step()
 
-                # add up lossess
-
-                total_recon_loss += recon_loss.item()
-
-                total_disc_cat_loss += disc_loss_cat.item()
-                total_gen_cat_loss += gen_cat_loss.item()
-
-                total_disc_style_loss += disc_loss_style.item()
-                total_gen_style_loss += gen_style_loss.item()
-
+                # accumulate
+                total_recon_loss           += recon_loss.item()
+                total_disc_cat_loss        += (d_real_loss_cat + d_fake_loss_cat).item()
+                total_gen_cat_loss         += gen_cat_loss.item()
+                total_disc_style_loss      += (d_real_loss_style + d_fake_loss_style).item()
+                total_gen_style_loss       += gen_style_loss.item()
                 total_semi_supervised_loss += semi_supervised_loss.item()
 
+                # update tqdm display with current batch averages
+                loop.set_postfix({
+                    "Recon":           total_recon_loss / batch_idx,
+                    "Disc_Cat":        total_disc_cat_loss / batch_idx,
+                    "Gen_Cat":         total_gen_cat_loss / batch_idx,
+                    "Disc_Style":      total_disc_style_loss / batch_idx,
+                    "Gen_Style":       total_gen_style_loss / batch_idx,
+                    "SemiSup":         total_semi_supervised_loss / batch_idx
+                })
 
-                print(f"Epoch ({epoch + 1}/{epochs})\t)")
-
-                print(f"Recon Loss: {total_recon_loss / len(data_loader):.4f}\t)")
-
-                print(f"Disc Cat Loss: {total_disc_cat_loss / len(data_loader):.4f}\t)")
-                print(f"Gen Cat Loss: {total_gen_cat_loss / len(data_loader):.4f}\t)")
-
-                print(f"Disc Style Loss: {total_disc_style_loss / len(data_loader):.4f}\t)")
-                print(f"Gen Style Loss: {total_gen_style_loss / len(data_loader):.4f}\t)")
-            
-                print(f"Semi-supervised Loss: {total_semi_supervised_loss / len(data_loader):.4f}\t)")
-
-
-
+            # optionally print a summary at end of epoch
+            print(
+                f"Epoch {epoch+1}/{epochs} — "
+                f"Recon: {total_recon_loss/len(data_loader):.4f}, "
+                f"Disc_Cat: {total_disc_cat_loss/len(data_loader):.4f}, "
+                f"Gen_Cat: {total_gen_cat_loss/len(data_loader):.4f}, "
+                f"Disc_Style: {total_disc_style_loss/len(data_loader):.4f}, "
+                f"Gen_Style: {total_gen_style_loss/len(data_loader):.4f}, "
+                f"SemiSup: {total_semi_supervised_loss/len(data_loader):.4f}"
+            )
 
 
     def save_weights(self, path_prefix="aae_weights"):
