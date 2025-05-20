@@ -65,8 +65,8 @@ class SemiSupervisedAutoEncoderOptions(object):
         return (
             f"<SemiSupervisedAutoEncoderOptions("  \
             f"input_dim={self.input_dim}, "  \
-            f"encoder_hidden_dim={self.encoder_hidden_dim}, "  \
-            f"decoder_hidden_dim={self.decoder_hidden_dim}, "  \
+            f"encoder_hidden_dim={self.ae_hidden_dim}, "  \
+            f"decoder_hidden_dim={self.disc_hidden_dim}, "  \
             f"latent_dim_categorical={self.latent_dim_categorical}, "  \
             f"latent_dim_style={self.latent_dim_style}, "  \
             f"use_decoder_sigmoid={self.use_decoder_sigmoid}, "  \
@@ -111,13 +111,6 @@ class SemiSupervisedAdversarialAutoencoder(nn.Module):
         )
 
         # optimizer for generative phase
-        # self.gen_opt = torch.optim.SGD(
-        #     self.encoder.parameters(),
-        #     lr=options.init_gen_lr,
-        #     momentum=0.1
-        # )
-
-        # optimizer for generative phase
         self.gen_cat_opt = torch.optim.SGD(
             self.encoder.parameters(),
             lr=options.init_gen_lr,
@@ -148,8 +141,6 @@ class SemiSupervisedAdversarialAutoencoder(nn.Module):
         self.recon_loss = options.recon_loss_fn
         self.semi_supervised_loss = options.semi_supervised_loss_fn
         self.adv_loss = nn.BCEWithLogitsLoss()
-        # self.adv_loss_cat = nn.BCEWithLogitsLoss()
-        # self.adv_loss_style = nn.BCEWithLogitsLoss()
 
 
     def forward_reconstruction(self, x):
@@ -160,6 +151,13 @@ class SemiSupervisedAdversarialAutoencoder(nn.Module):
     def forward_encoder(self, x):
         z = self.encoder(x)
         z_cat = self.cat_softmax(z[:, :self.options.latent_dim_categorical])
+        # z_cat = z[:, :self.options.latent_dim_categorical]
+        z_style = z[:, self.options.latent_dim_categorical:]
+        return z_cat, z_style
+    
+    def forward_no_softmax(self, x):
+        z = self.encoder(x)
+        z_cat = z[:, :self.options.latent_dim_categorical]
         z_style = z[:, self.options.latent_dim_categorical:]
         return z_cat, z_style
         
@@ -172,7 +170,7 @@ class SemiSupervisedAdversarialAutoencoder(nn.Module):
         return F.one_hot(labels, num_classes=latent_dim).float().to(self.device)
 
 
-    def train_mbgd(self, data_loader, epochs, prior_std=5.0):
+    def train_mbgd(self, train_loader, val_loader, epochs, prior_std=5.0):
         for epoch in range(epochs):
 
             # adjust this if your experiment does different dynamic LRs
@@ -202,7 +200,8 @@ class SemiSupervisedAdversarialAutoencoder(nn.Module):
             total_disc_cat_loss = 0
             total_gen_cat_loss = 0
 
-            loop = tqdm(data_loader, desc=f"Epoch [{epoch+1}/{epochs}]", leave=False)
+            self.train()
+            loop = tqdm(train_loader, desc=f"Epoch [{epoch+1}/{epochs}]", leave=False)
             for batch_idx, (x, y) in enumerate(loop, start=1):
                 x, y = x.to(self.device), y.to(self.device)
 
@@ -246,7 +245,8 @@ class SemiSupervisedAdversarialAutoencoder(nn.Module):
 
                 # === SEMI-SUPERVISED CLASSIFICATION ===
                 self.semi_supervised_opt.zero_grad()
-                y_hat, _ = self.forward_encoder(x)
+                # forward without softmax, since cross entropy already implements that
+                y_hat, _ = self.forward_no_softmax(x)
                 semi_supervised_loss = self.semi_supervised_loss(y_hat, y)
                 semi_supervised_loss.backward()
                 self.semi_supervised_opt.step()
@@ -272,13 +272,28 @@ class SemiSupervisedAdversarialAutoencoder(nn.Module):
             # optionally print a summary at end of epoch
             print(
                 f"Epoch {epoch+1}/{epochs} — "
-                f"Recon: {total_recon_loss/len(data_loader):.4f}, "
-                f"Disc_Cat: {total_disc_cat_loss/len(data_loader):.4f}, "
-                f"Gen_Cat: {total_gen_cat_loss/len(data_loader):.4f}, "
-                f"Disc_Style: {total_disc_style_loss/len(data_loader):.4f}, "
-                f"Gen_Style: {total_gen_style_loss/len(data_loader):.4f}, "
-                f"SemiSup: {total_semi_supervised_loss/len(data_loader):.4f}"
+                f"Recon: {total_recon_loss/len(train_loader):.4f}, "
+                f"Disc_Cat: {total_disc_cat_loss/len(train_loader):.4f}, "
+                f"Gen_Cat: {total_gen_cat_loss/len(train_loader):.4f}, "
+                f"Disc_Style: {total_disc_style_loss/len(train_loader):.4f}, "
+                f"Gen_Style: {total_gen_style_loss/len(train_loader):.4f}, "
+                f"SemiSup: {total_semi_supervised_loss/len(train_loader):.4f}"
             )
+
+
+            self.eval()
+            correct = 0
+            total = 0
+            with torch.no_grad():
+                for vx, vy in val_loader:
+                    vx = vx.view(vx.size(0), -1).to(self.device)
+                    vy = vy.to(self.device)
+                    logits_cat, _ = self.forward_no_softmax(vx)
+                    preds = logits_cat.argmax(dim=1)
+                    correct += (preds == vy).sum().item()
+                    total += vy.size(0)
+            val_acc = correct / total * 100
+            print(f"Validation Accuracy: {val_acc:.2f}%\n")
 
 
     def save_weights(self, path_prefix="aae_weights"):
@@ -318,3 +333,26 @@ class SemiSupervisedAdversarialAutoencoder(nn.Module):
             torch.load(f"{path_prefix}_disc_style.pth", map_location=self.device)
         )
         print(f"Weights loaded from {path_prefix}_*.pth")
+
+    def predict(self, x):
+        """
+        Predict class labels for input batch x.
+
+        Args:
+            x (torch.Tensor): shape (N, 1, 28, 28) or (N, 784)
+
+        Returns:
+            probs (torch.Tensor): shape (N, latent_dim_categorical), class probabilities
+            preds (torch.Tensor): shape (N,), predicted class indices
+        """
+        self.eval()
+        with torch.no_grad():
+            if x.dim() == 4:
+                x = x.view(x.size(0), -1)
+
+            z = self.encoder(x.to(self.device))
+            logits_cat = z[:, : self.options.latent_dim_categorical]
+            probs = F.softmax(logits_cat, dim=1)
+            preds = probs.argmax(dim=1)
+
+        return probs, preds
