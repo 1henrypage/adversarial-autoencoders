@@ -178,3 +178,7 @@ cython_debug/
 .pypirc
 
 experiments/data/MNIST/raw/
+
+data/MNIST/raw/
+
+*.DS_Store
