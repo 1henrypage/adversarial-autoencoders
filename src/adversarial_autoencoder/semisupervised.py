@@ -21,8 +21,7 @@ class SemiSupervisedAutoEncoderOptions(object):
             init_gen_lr, 
             init_disc_categorical_lr,
             init_disc_style_lr,
-            use_decoder_sigmoid=True,
-            device="cuda"
+            use_decoder_sigmoid=True
         ):
         
         # Model dimensions
@@ -51,7 +50,15 @@ class SemiSupervisedAutoEncoderOptions(object):
         self.use_decoder_sigmoid = use_decoder_sigmoid
 
         # Device for computation
-        self.device = device
+        self.device = self._get_device()
+
+    def _get_device(self):
+        if torch.cuda.is_available():
+            return 'cuda'
+        elif torch.backends.mps.is_available():
+            return 'mps'
+        return 'cpu'
+
 
     def __repr__(self):
         return (
