@@ -23,6 +23,10 @@ packages = [{include = "adversarial_autoencoder", from = "src"}]
 package-mode=false
 
 
+[tool.poetry.group.dev.dependencies]
+jupyter = "^1.1.1"
+ipykernel = "^6.29.5"
+
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
