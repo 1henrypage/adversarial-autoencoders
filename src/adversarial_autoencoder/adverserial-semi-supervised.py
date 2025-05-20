@@ -101,7 +101,21 @@ class SemiSupervisedAdversarialAutoencoder(nn.Module):
         )
 
         # optimizer for generative phase
-        self.gen_opt = torch.optim.SGD(
+        # self.gen_opt = torch.optim.SGD(
+        #     self.encoder.parameters(),
+        #     lr=options.init_gen_lr,
+        #     momentum=0.1
+        # )
+
+        # optimizer for generative phase
+        self.gen_cat_opt = torch.optim.SGD(
+            self.encoder.parameters(),
+            lr=options.init_gen_lr,
+            momentum=0.1
+        )
+
+        # optimizer for generative phase
+        self.gen_style_opt = torch.optim.SGD(
             self.encoder.parameters(),
             lr=options.init_gen_lr,
             momentum=0.1
@@ -192,11 +206,11 @@ class SemiSupervisedAdversarialAutoencoder(nn.Module):
                 self.disc_cat_opt.zero_grad()
 
                 z_real_cat = self.sample_latent_prior_categorical(x.size(0))
-                d_real_cat = self.discriminator(z_real_cat)
+                d_real_cat = self.discriminator_categorical(z_real_cat)
                 d_real_loss_cat = self.adv_loss(d_real_cat, torch.ones_like(d_real_cat))
 
                 z_fake_cat, _ = self.foreward_encoder(x).detach()
-                d_fake_cat = self.discriminator(z_fake_cat)
+                d_fake_cat = self.discriminator_categorical(z_fake_cat)
                 d_fake_loss_cat = self.adv_loss(d_fake_cat, torch.zeros_like(d_fake_cat))
 
                 disc_loss_cat = d_real_loss_cat + d_fake_loss_cat
@@ -208,19 +222,67 @@ class SemiSupervisedAdversarialAutoencoder(nn.Module):
                 self.disc_style_opt.zero_grad()
 
                 z_real_style = self.sample_latent_prior_gaussian(x.size(0))
-                d_real_style = self.discriminator(z_real_style)
+                d_real_style = self.discriminator_style(z_real_style)
                 d_real_loss_style = self.adv_loss(d_real_style, torch.ones_like(d_real_style))
 
                 _, z_fake_style = self.foreward_encoder(x).detach()
-                d_fake_style = self.discriminator(z_fake_style)
+                d_fake_style = self.discriminator_style(z_fake_style)
                 d_fake_loss_style = self.adv_loss(d_fake_style, torch.zeros_like(d_fake_style))
 
                 disc_loss_style = d_real_loss_style + d_fake_loss_style
                 disc_loss_style.backward()
                 self.disc_style_opt.step()
 
-            # TODO: finish up training stages for semi-supervised
+                #  === GENERATOR REGULARISATION ===
+                # doing it kinda jointly, idk if that's right
+                self.gen_cat_opt.zero_grad()
+                z_cat, z_style = self.foreward_encoder(x)
+
+                d_pred_cat = self.discriminator_categorical(z_cat)
+                gen_cat_loss = self.adv_loss(d_pred_cat, torch.ones_like(d_pred_cat))
+
+                gen_cat_loss.backward()
+                self.gen_cat_opt.step()
+
+                d_pred_style = self.discriminator_style(z_style)
+                gen_style_loss = self.adv_loss(d_pred_style, torch.ones_like(d_pred_style))
+
+                gen_style_loss.backward()
+                self.gen_style_opt.step()
+
+                #  === SEMI-SUPERVISED CLASSIFICATION ===
+
+                self.semi_supervised_opt.zero_grad()
+                y_hat, _ = self.foreward_encoder(x)
+
+                semi_supervised_loss = self.semi_supervised_loss(y_hat, y)
+                semi_supervised_loss.backward()
+                self.semi_supervised_opt.step()
+
+                # add up lossess
+
+                total_recon_loss += recon_loss.item()
+
+                total_disc_cat_loss += disc_loss_cat.item()
+                total_gen_cat_loss += gen_cat_loss.item()
+
+                total_disc_style_loss += disc_loss_style.item()
+                total_gen_style_loss += gen_style_loss.item()
+
+                total_semi_supervised_loss += semi_supervised_loss.item()
+
+
+                print(f"Epoch ({epoch + 1}/{epochs})\t)")
+
+                print(f"Recon Loss: {total_recon_loss / len(data_loader):.4f}\t)")
+
+                print(f"Disc Cat Loss: {total_disc_cat_loss / len(data_loader):.4f}\t)")
+                print(f"Gen Cat Loss: {total_gen_cat_loss / len(data_loader):.4f}\t)")
+
+                print(f"Disc Style Loss: {total_disc_style_loss / len(data_loader):.4f}\t)")
+                print(f"Gen Style Loss: {total_gen_style_loss / len(data_loader):.4f}\t)")
             
+                print(f"Semi-supervised Loss: {total_semi_supervised_loss / len(data_loader):.4f}\t)")
 
 
     # # we assume gaussian prior, if you want to change this, change it.
