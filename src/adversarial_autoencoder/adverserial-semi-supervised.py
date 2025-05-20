@@ -285,97 +285,43 @@ class SemiSupervisedAdversarialAutoencoder(nn.Module):
                 print(f"Semi-supervised Loss: {total_semi_supervised_loss / len(data_loader):.4f}\t)")
 
 
-    # # we assume gaussian prior, if you want to change this, change it.
-    # def train_mbgd(self, data_loader, epochs, prior_std=5.0):
-    #     for epoch in range(epochs):
-
-    #         # adjust this if your experiment does different dynamic LRs
-    #         if epoch == 50:
-    #             self.recon_opt.param_groups[0]['lr'] = 0.001
-    #             self.gen_opt.param_groups[0]['lr'] = 0.01
-    #             self.disc_opt.param_groups[0]['lr'] = 0.01
-    #         elif epoch == 1000:
-    #             self.recon_opt.param_groups[0]['lr'] = 0.0001
-    #             self.gen_opt.param_groups[0]['lr'] = 0.001
-    #             self.disc_opt.param_groups[0]['lr'] = 0.001
-
-
-    #         total_recon_loss = 0
-    #         total_disc_loss = 0
-    #         total_gen_loss = 0
-
-    #         for batch_idx, (x, _) in enumerate(data_loader):
-    #             x = x.to(self.device)
-
-    #             # === RECON PHASE ====
-    #             self.recon_opt.zero_grad()
-    #             z = self.encoder(x)
-    #             x_hat = self.decoder(z)
-    #             recon_loss = self.recon_loss(x_hat, x)
-    #             recon_loss.backward()
-    #             self.recon_opt.step()
-
-    #             # === DISCRIMINATOR REGULARISATION ===
-    #             self.disc_opt.zero_grad()
-    #             z_real = torch.randn(x.size(0), z.size(1)).to(self.device) * prior_std
-    #             d_real = self.discriminator(z_real)
-    #             d_real_loss = self.adv_loss(d_real, torch.ones_like(d_real))
-
-    #             z_fake = self.encoder(x).detach()
-    #             d_fake = self.discriminator(z_fake)
-    #             d_fake_loss = self.adv_loss(d_fake, torch.zeros_like(d_fake))
-
-    #             disc_loss = d_real_loss + d_fake_loss
-    #             disc_loss.backward()
-    #             self.disc_opt.step()
-
-    #             #  === GENERATOR REGULARISATION ===
-    #             self.gen_opt.zero_grad()
-    #             z = self.encoder(x)
-    #             d_pred = self.discriminator(z)
-    #             gen_loss = self.adv_loss(d_pred, torch.ones_like(d_pred))
-    #             gen_loss.backward()
-    #             self.gen_opt.step()
-
-    #             total_recon_loss += recon_loss.item()
-    #             total_disc_loss += disc_loss.item()
-    #             total_gen_loss += gen_loss.item()
-
-    #         print(f"Epoch ({epoch + 1}/{epochs})\t)"
-    #               f"Recon Loss: {total_recon_loss / len(data_loader):.4f}\t)"
-    #               f"Disc Loss: {total_disc_loss / len(data_loader):.4f}\t)"
-    #               f"Gen Loss: {total_gen_loss / len(data_loader):.4f}\t)"
-    #         )
 
 
 
-    # def save_weights(self, path_prefix="aae_weights"):
-    #     """
-    #     Saves the weights of the encoder, decoder, and discriminator.
+    def save_weights(self, path_prefix="aae_weights"):
+        """
+        Saves the weights of the encoder, decoder, and both discriminators.
 
-    #     Args:
-    #         path_prefix (str): Prefix for the saved file paths. Files will be saved as:
-    #             - <path_prefix>_encoder.pth
-    #             - <path_prefix>_decoder.pth
-    #             - <path_prefix>_discriminator.pth
-    #     """
-    #     torch.save(self.encoder.state_dict(), f"{path_prefix}_encoder.pth")
-    #     torch.save(self.decoder.state_dict(), f"{path_prefix}_decoder.pth")
-    #     torch.save(self.discriminator.state_dict(), f"{path_prefix}_discriminator.pth")
-    #     print(f"Weights saved to {path_prefix}_*.pth")
+        Args:
+            path_prefix (str): Prefix for the saved file paths. Files will be saved as:
+                - <path_prefix>_encoder.pth
+                - <path_prefix>_decoder.pth
+                - <path_prefix>_disc_categorical.pth
+                - <path_prefix>_disc_style.pth
+        """
+        torch.save(self.encoder.state_dict(), f"{path_prefix}_encoder.pth")
+        torch.save(self.decoder.state_dict(), f"{path_prefix}_decoder.pth")
+        torch.save(self.discriminator_categorical.state_dict(), f"{path_prefix}_disc_categorical.pth")
+        torch.save(self.discriminator_style.state_dict(), f"{path_prefix}_disc_style.pth")
+        print(f"Weights saved to {path_prefix}_*.pth")
 
+    def load_weights(self, path_prefix="aae_weights"):
+        """
+        Loads the weights of the encoder, decoder, and both discriminators.
 
-    # def load_weights(self, path_prefix="aae_weights"):
-    #     """
-    #     Loads the weights of the encoder, decoder, and discriminator from files.
-
-    #     Args:
-    #         path_prefix (str): Prefix for the saved file paths. Expected files are:
-    #             - <path_prefix>_encoder.pth
-    #             - <path_prefix>_decoder.pth
-    #             - <path_prefix>_discriminator.pth
-    #     """
-    #     self.encoder.load_state_dict(torch.load(f"{path_prefix}_encoder.pth", map_location=self.device))
-    #     self.decoder.load_state_dict(torch.load(f"{path_prefix}_decoder.pth", map_location=self.device))
-    #     self.discriminator.load_state_dict(torch.load(f"{path_prefix}_discriminator.pth", map_location=self.device))
-    #     print(f"Weights loaded from {path_prefix}_*.pth")
+        Args:
+            path_prefix (str): Prefix for the saved file paths. Expected files are:
+                - <path_prefix>_encoder.pth
+                - <path_prefix>_decoder.pth
+                - <path_prefix>_disc_categorical.pth
+                - <path_prefix>_disc_style.pth
+        """
+        self.encoder.load_state_dict(torch.load(f"{path_prefix}_encoder.pth", map_location=self.device))
+        self.decoder.load_state_dict(torch.load(f"{path_prefix}_decoder.pth", map_location=self.device))
+        self.discriminator_categorical.load_state_dict(
+            torch.load(f"{path_prefix}_disc_categorical.pth", map_location=self.device)
+        )
+        self.discriminator_style.load_state_dict(
+            torch.load(f"{path_prefix}_disc_style.pth", map_location=self.device)
+        )
+        print(f"Weights loaded from {path_prefix}_*.pth")
