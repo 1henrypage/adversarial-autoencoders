@@ -68,11 +68,22 @@ class SupervisedAdversarialAutoencoder(nn.Module):
                 writer.writerow(["Epoch", "Recon Loss", "Disc Loss", "Gen Loss"])
         for epoch in tqdm(range(epochs), desc="Training Epochs", unit="epoch"):
 
+            # For SGD
+            # if epoch == 50:
+            #     self.recon_opt.param_groups[0]['lr'] = 0.001
+            #     self.gen_opt.param_groups[0]['lr'] = 0.01
+            #     self.disc_opt.param_groups[0]['lr'] = 0.01
+            # elif epoch == 1000:
+            #     self.recon_opt.param_groups[0]['lr'] = 0.0001
+            #     self.gen_opt.param_groups[0]['lr'] = 0.001
+            #     self.disc_opt.param_groups[0]['lr'] = 0.001
+
+            # For Adam
             if epoch == 50:
                 self.recon_opt.param_groups[0]['lr'] = 0.0001
                 self.gen_opt.param_groups[0]['lr'] = 0.0001
                 self.disc_opt.param_groups[0]['lr'] = 0.0001
-            if epoch == 1000:
+            elif epoch == 1000:
                 self.recon_opt.param_groups[0]['lr'] = 0.00001
                 self.gen_opt.param_groups[0]['lr'] = 0.00001
                 self.disc_opt.param_groups[0]['lr'] = 0.00001
