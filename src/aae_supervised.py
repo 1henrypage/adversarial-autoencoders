@@ -87,7 +87,7 @@ class SupervisedAdversarialAutoencoder(nn.Module):
                 y_onehot = F.one_hot(labels, num_classes=self.num_classes).float()
 
                 # Add gaussian noise to input
-                if model == "with noise":
+                if "noise" in model:
                     x = x + torch.randn_like(x) * 0.3
 
                 # === RECONSTRUCTION ===

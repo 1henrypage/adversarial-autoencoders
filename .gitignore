@@ -1,6 +1,7 @@
 # custom
 *.pth
 !src/adversarial_autoencoder/tmp_runs/*.pth
+!experiments/weights/supervised/*.pth
 src/adversarial_autoencoder/data/
 
 
@@ -177,3 +178,7 @@ cython_debug/
 .pypirc
 
 experiments/data/MNIST/raw/
+
+data/MNIST/raw/
+
+*.DS_Store
