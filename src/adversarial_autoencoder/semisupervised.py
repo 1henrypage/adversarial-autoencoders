@@ -6,6 +6,8 @@ import torch.nn.functional as F
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 from adversarial import Encoder, Decoder, Discriminator, weights_init
+import csv
+import os
 
 class SemiSupervisedAutoEncoderOptions(object):
     def __init__(
@@ -96,47 +98,83 @@ class SemiSupervisedAdversarialAutoencoder(nn.Module):
         self.discriminator_categorical.apply(weights_init)
         self.discriminator_style.apply(weights_init)
 
-        # optimazer for reconstruction phase
-        self.recon_opt = torch.optim.SGD(
+
+        self.recon_opt = torch.optim.AdamW(
             list(self.encoder.parameters()) + list(self.decoder.parameters()),
-            lr=options.init_recon_lr,
-            momentum=0.9
+            lr=options.init_recon_lr
         )
 
         # optimizer for semi-supervised phase
-        self.semi_supervised_opt = torch.optim.SGD(
+        self.semi_supervised_opt = torch.optim.AdamW(
             self.encoder.parameters(),
-            lr=options.init_semi_sup_lr,
-            momentum=0.9
+            lr=options.init_semi_sup_lr
         )
 
-        # optimizer for generative phase
-        self.gen_cat_opt = torch.optim.SGD(
+        # optimizer for generative phase (categorical branch)
+        self.gen_cat_opt = torch.optim.AdamW(
             self.encoder.parameters(),
-            lr=options.init_gen_lr,
-            momentum=0.1
+            lr=options.init_gen_lr
         )
 
-        # optimizer for generative phase
-        self.gen_style_opt = torch.optim.SGD(
+        # optimizer for generative phase (style branch)
+        self.gen_style_opt = torch.optim.AdamW(
             self.encoder.parameters(),
-            lr=options.init_gen_lr,
-            momentum=0.1
+            lr=options.init_gen_lr
         )
 
         # optimizer for categorical discriminator 
-        self.disc_cat_opt = torch.optim.SGD(
+        self.disc_cat_opt = torch.optim.AdamW(
             self.discriminator_categorical.parameters(),
-            lr=options.init_disc_categorical_lr,
-            momentum=0.1
+            lr=options.init_disc_categorical_lr
         )
 
         # optimizer for style discriminator
-        self.disc_style_opt = torch.optim.SGD(
+        self.disc_style_opt = torch.optim.AdamW(
             self.discriminator_style.parameters(),
-            lr=options.init_disc_style_lr,
-            momentum=0.1
+            lr=options.init_disc_style_lr
         )
+
+        # # optimazer for reconstruction phase
+        # self.recon_opt = torch.optim.SGD(
+        #     list(self.encoder.parameters()) + list(self.decoder.parameters()),
+        #     lr=options.init_recon_lr,
+        #     momentum=0.9
+        # )
+
+        # # optimizer for semi-supervised phase
+        # self.semi_supervised_opt = torch.optim.SGD(
+        #     self.encoder.parameters(),
+        #     lr=options.init_semi_sup_lr,
+        #     momentum=0.9
+        # )
+
+        # # optimizer for generative phase
+        # self.gen_cat_opt = torch.optim.SGD(
+        #     self.encoder.parameters(),
+        #     lr=options.init_gen_lr,
+        #     momentum=0.1
+        # )
+
+        # # optimizer for generative phase
+        # self.gen_style_opt = torch.optim.SGD(
+        #     self.encoder.parameters(),
+        #     lr=options.init_gen_lr,
+        #     momentum=0.1
+        # )
+
+        # # optimizer for categorical discriminator 
+        # self.disc_cat_opt = torch.optim.SGD(
+        #     self.discriminator_categorical.parameters(),
+        #     lr=options.init_disc_categorical_lr,
+        #     momentum=0.1
+        # )
+
+        # # optimizer for style discriminator
+        # self.disc_style_opt = torch.optim.SGD(
+        #     self.discriminator_style.parameters(),
+        #     lr=options.init_disc_style_lr,
+        #     momentum=0.1
+        # )
 
         self.recon_loss = options.recon_loss_fn
         self.semi_supervised_loss = options.semi_supervised_loss_fn
@@ -170,25 +208,46 @@ class SemiSupervisedAdversarialAutoencoder(nn.Module):
         return F.one_hot(labels, num_classes=latent_dim).float().to(self.device)
 
 
-    def train_mbgd(self, train_loader, val_loader, epochs, prior_std=5.0):
-        for epoch in range(epochs):
+    def train_mbgd(self, train_loader, val_loader, epochs, result_folder: str, prior_std=5.0):
 
+        os.makedirs(result_folder, exist_ok=True)
+        with open(f'{result_folder}/train_log.csv', 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['epoch', 'recon_loss', 'semi_supervised_loss', 'disc_cat_loss', 'gen_cat_loss', 'disc_style_loss', 'gen_style_loss'])
+
+        for epoch in range(epochs):
             # adjust this if your experiment does different dynamic LRs
-            if epoch == 50:
-                self.recon_opt.param_groups[0]['lr'] = 0.001
-                self.semi_supervised_opt.param_groups[0]['lr'] = 0.001
-                self.gen_style_opt.param_groups[0]['lr'] = 0.01
-                self.gen_cat_opt.param_groups[0]['lr'] = 0.01
-                self.disc_style_opt.param_groups[0]['lr'] = 0.01
-                self.disc_cat_opt.param_groups[0]['lr'] = 0.01
+            # if epoch == 50:
+            #     self.recon_opt.param_groups[0]['lr'] = 0.001
+            #     self.semi_supervised_opt.param_groups[0]['lr'] = 0.01
+            #     self.gen_style_opt.param_groups[0]['lr'] = 0.01
+            #     self.gen_cat_opt.param_groups[0]['lr'] = 0.01
+            #     self.disc_style_opt.param_groups[0]['lr'] = 0.01
+            #     self.disc_cat_opt.param_groups[0]['lr'] = 0.01
                 
-            elif epoch == 1000:
+            # elif epoch == 1000:
+            #     self.recon_opt.param_groups[0]['lr'] = 0.0001
+            #     self.semi_supervised_opt.param_groups[0]['lr'] = 0.001
+            #     self.gen_style_opt.param_groups[0]['lr'] = 0.001
+            #     self.gen_cat_opt.param_groups[0]['lr'] = 0.001
+            #     self.disc_style_opt.param_groups[0]['lr'] = 0.001
+            #     self.disc_cat_opt.param_groups[0]['lr'] = 0.001
+
+            if epoch == 50:
                 self.recon_opt.param_groups[0]['lr'] = 0.0001
                 self.semi_supervised_opt.param_groups[0]['lr'] = 0.0001
-                self.gen_style_opt.param_groups[0]['lr'] = 0.001
-                self.gen_cat_opt.param_groups[0]['lr'] = 0.001
-                self.disc_style_opt.param_groups[0]['lr'] = 0.001
-                self.disc_cat_opt.param_groups[0]['lr'] = 0.001
+                self.gen_style_opt.param_groups[0]['lr'] = 0.0001
+                self.gen_cat_opt.param_groups[0]['lr'] = 0.0001
+                self.disc_style_opt.param_groups[0]['lr'] = 0.0001
+                self.disc_cat_opt.param_groups[0]['lr'] = 0.0001
+                
+            elif epoch == 1000:
+                self.recon_opt.param_groups[0]['lr'] = 0.00001
+                self.semi_supervised_opt.param_groups[0]['lr'] = 0.00001
+                self.gen_style_opt.param_groups[0]['lr'] = 0.00001
+                self.gen_cat_opt.param_groups[0]['lr'] = 0.00001
+                self.disc_style_opt.param_groups[0]['lr'] = 0.00001
+                self.disc_cat_opt.param_groups[0]['lr'] = 0.00001
 
 
             total_recon_loss = 0
@@ -206,48 +265,60 @@ class SemiSupervisedAdversarialAutoencoder(nn.Module):
                 x, y = x.to(self.device), y.to(self.device)
 
                 # === RECONSTRUCTION PHASE ====
-                self.recon_opt.zero_grad()
+                
                 x_hat = self.forward_reconstruction(x)
                 recon_loss = self.recon_loss(x_hat, x)
+
+                self.recon_opt.zero_grad()
                 recon_loss.backward()
                 self.recon_opt.step()
 
                 # === CATEGORICAL DISCRIMINATOR REGULARISATION ===
-                self.disc_cat_opt.zero_grad()
+                
                 z_real_cat = self.sample_latent_prior_categorical(x.size(0))
                 d_real_loss_cat = self.adv_loss(self.discriminator_categorical(z_real_cat), torch.ones(x.size(0), device=self.device))
                 z_fake_cat, _ = self.forward_encoder(x)
                 d_fake_loss_cat = self.adv_loss(self.discriminator_categorical(z_fake_cat.detach()), torch.zeros(x.size(0), device=self.device))
+
+                self.disc_cat_opt.zero_grad()
                 (d_real_loss_cat + d_fake_loss_cat).backward()
                 self.disc_cat_opt.step()
 
                 # === STYLE DISCRIMINATOR REGULARISATION ===
-                self.disc_style_opt.zero_grad()
+                
                 z_real_style = self.sample_latent_prior_gaussian(x.size(0))
                 d_real_loss_style = self.adv_loss(self.discriminator_style(z_real_style), torch.ones(x.size(0), device=self.device))
                 _, z_fake_style = self.forward_encoder(x)
                 d_fake_loss_style = self.adv_loss(self.discriminator_style(z_fake_style.detach()), torch.zeros(x.size(0), device=self.device))
+
+                self.disc_style_opt.zero_grad()
                 (d_real_loss_style + d_fake_loss_style).backward()
                 self.disc_style_opt.step()
 
                 # === GENERATOR REGULARISATION ===
-                self.gen_cat_opt.zero_grad()
+
                 d_pred_cat = self.discriminator_categorical(self.forward_encoder(x)[0])
                 gen_cat_loss = self.adv_loss(d_pred_cat, torch.ones(x.size(0), device=self.device))
+
+                self.gen_cat_opt.zero_grad()
                 gen_cat_loss.backward()
                 self.gen_cat_opt.step()
 
-                self.gen_style_opt.zero_grad()
+                
                 d_pred_style = self.discriminator_style(self.forward_encoder(x)[1])
                 gen_style_loss = self.adv_loss(d_pred_style, torch.ones(x.size(0), device=self.device))
+
+                self.gen_style_opt.zero_grad()
                 gen_style_loss.backward()
                 self.gen_style_opt.step()
 
                 # === SEMI-SUPERVISED CLASSIFICATION ===
-                self.semi_supervised_opt.zero_grad()
+                
                 # forward without softmax, since cross entropy already implements that
                 y_hat, _ = self.forward_no_softmax(x)
                 semi_supervised_loss = self.semi_supervised_loss(y_hat, y)
+
+                self.semi_supervised_opt.zero_grad()
                 semi_supervised_loss.backward()
                 self.semi_supervised_opt.step()
 
@@ -280,6 +351,17 @@ class SemiSupervisedAdversarialAutoencoder(nn.Module):
                 f"SemiSup: {total_semi_supervised_loss/len(train_loader):.4f}"
             )
 
+            avg_recon_loss = total_recon_loss / len(train_loader)
+            avg_semi_supervised_loss = total_semi_supervised_loss / len(train_loader)
+            avg_disc_cat_loss = total_disc_cat_loss / len(train_loader)
+            avg_gen_cat_loss = total_gen_cat_loss / len(train_loader)
+            avg_disc_style_loss = total_disc_style_loss / len(train_loader)
+            avg_gen_style_loss = total_gen_style_loss / len(train_loader)
+
+            with open('train_log.csv', 'a', newline='') as f:
+                writer = csv.writer(f)
+                writer.writerow([epoch+1, avg_recon_loss, avg_semi_supervised_loss, avg_disc_cat_loss, avg_gen_cat_loss, avg_disc_style_loss, avg_gen_style_loss])
+
 
             self.eval()
             correct = 0
@@ -294,6 +376,8 @@ class SemiSupervisedAdversarialAutoencoder(nn.Module):
                     total += vy.size(0)
             val_acc = correct / total * 100
             print(f"Validation Accuracy: {val_acc:.2f}%\n")
+
+            self.save_weights(path_prefix=f'{result_folder}/weights')
 
 
     def save_weights(self, path_prefix="aae_weights"):
