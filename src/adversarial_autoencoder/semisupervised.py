@@ -358,7 +358,7 @@ class SemiSupervisedAdversarialAutoencoder(nn.Module):
             avg_disc_style_loss = total_disc_style_loss / len(train_loader)
             avg_gen_style_loss = total_gen_style_loss / len(train_loader)
 
-            with open('train_log.csv', 'a', newline='') as f:
+            with open(f'{result_folder}/train_log.csv', 'a', newline='') as f:
                 writer = csv.writer(f)
                 writer.writerow([epoch+1, avg_recon_loss, avg_semi_supervised_loss, avg_disc_cat_loss, avg_gen_cat_loss, avg_disc_style_loss, avg_gen_style_loss])
 
