@@ -4,13 +4,13 @@ import torch.nn.functional as F
 
 from semisupervised import (
   SemiSupervisedAdversarialAutoencoder,
-  SemiSUpervisedAutoEncoderOptions,
+  SemiSupervisedAutoEncoderOptions,
 )
 
 class DimensionalityReductionAAE(SemiSupervisedAdversarialAutoencoder):
     def __init(
             self,
-            options: SemiSUpervisedAutoEncoderOptions,
+            options: SemiSupervisedAutoEncoderOptions,
             *,
             eta: float = 1.0, # Minimum allowed distance between heads
             lambda_ch: float = 1.0, # Weight of the cluster-head distance penalty
