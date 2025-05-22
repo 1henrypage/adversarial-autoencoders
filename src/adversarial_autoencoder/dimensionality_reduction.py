@@ -1,14 +1,29 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import weakref
+
+from adversarial import Decoder, weights_init
 
 from semisupervised import (
   SemiSupervisedAdversarialAutoencoder,
   SemiSupervisedAutoEncoderOptions,
 )
 
+class ReconLossWithPenalty(nn.Module):
+    """Wraps the original reconstruction loss and adds the cluster-head penalty."""
+
+    def __init__(self, base_loss: nn.Module, owner: "DimensionalityReductionAAE"):
+        super().__init__()
+        self.base_loss = base_loss
+        object.__setattr__(self, "_owner_ref", weakref.ref(owner))
+
+    def forward(self, x_hat: torch.Tensor, x: torch.Tensor) -> torch.Tensor:  # type: ignore[override]
+        owner = self._owner_ref()
+        return self.base_loss(x_hat, x) + owner._cluster_head_penalty()
+
 class DimensionalityReductionAAE(SemiSupervisedAdversarialAutoencoder):
-    def __init(
+    def __init__(
             self,
             options: SemiSupervisedAutoEncoderOptions,
             *,
@@ -22,19 +37,23 @@ class DimensionalityReductionAAE(SemiSupervisedAdversarialAutoencoder):
             options.latent_dim_categorical, options.latent_dim_style
             ))
         
+        self.decoder = Decoder(
+            options.latent_dim_style, 
+            options.ae_hidden_dim, 
+            options.input_dim, 
+            options.use_decoder_sigmoid
+            ).to(options.device)
+        self.decoder.apply(weights_init)
         # Add to optimiser
-        self.recon_opt.add_param_group({"params": self.WC})
+        self.recon_opt = torch.optim.AdamW(
+            list(self.encoder.parameters()) + list(self.decoder.parameters()) + [self.WC],
+            lr=options.init_recon_lr,
+        )
 
         self.eta = eta
         self.lambda_ch = lambda_ch
 
-        # Include our penalty in the reconstruction loss
-        self._base_recon_loss = self.recon_loss
-
-        def _recon_with_penalty(x_hat, x, *, _self=self):
-            return _self._base_recon_loss(x_hat, x) + _self._cluster_head_penalty()
-
-        self.recon_loss = _recon_with_penalty
+        self.recon_loss = ReconLossWithPenalty(self.recon_loss, self)
 
     def _compose_latent(self, z_cat: torch.Tensor, z_style: torch.Tensor):
         """Create the *n-dimensional* latent used by the decoder."""
