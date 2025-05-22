@@ -208,14 +208,16 @@ class SemiSupervisedAdversarialAutoencoder(nn.Module):
         return F.one_hot(labels, num_classes=latent_dim).float().to(self.device)
 
 
-    def train_mbgd(self, train_loader, val_loader, epochs, result_folder: str, prior_std=5.0):
+    def train_mbgd(self, train_loader, val_loader, epochs, result_folder: str, prior_std=5.0, add_gaussian_noise = False):
 
         os.makedirs(result_folder, exist_ok=True)
         with open(f'{result_folder}/train_log.csv', 'w', newline='') as f:
             writer = csv.writer(f)
             writer.writerow(['epoch', 'recon_loss', 'semi_supervised_loss', 'disc_cat_loss', 'gen_cat_loss', 'disc_style_loss', 'gen_style_loss'])
 
+        epoch_counter = 0
         for epoch in range(epochs):
+            
             # adjust this if your experiment does different dynamic LRs
             # if epoch == 50:
             #     self.recon_opt.param_groups[0]['lr'] = 0.001
@@ -263,6 +265,11 @@ class SemiSupervisedAdversarialAutoencoder(nn.Module):
             loop = tqdm(train_loader, desc=f"Epoch [{epoch+1}/{epochs}]", leave=False)
             for batch_idx, (x, y) in enumerate(loop, start=1):
                 x, y = x.to(self.device), y.to(self.device)
+
+                if add_gaussian_noise:
+                    noise = torch.randn_like(x) * 0.3
+                    x = x + noise
+
 
                 # === RECONSTRUCTION PHASE ====
                 
@@ -377,6 +384,11 @@ class SemiSupervisedAdversarialAutoencoder(nn.Module):
             val_acc = correct / total * 100
             print(f"Validation Accuracy: {val_acc:.2f}%\n")
 
+            epoch_counter += 1
+            if epoch_counter % 50 == 0:
+                os.makedirs(f'{result_folder}/weights_epoch_{epoch_counter}', exist_ok=True)
+                self.save_weights(path_prefix=f'{result_folder}/weights_epoch_{epoch_counter}/weights')
+
             self.save_weights(path_prefix=f'{result_folder}/weights')
 
 
@@ -485,3 +497,8 @@ class SemiSupervisedAdversarialAutoencoder(nn.Module):
             images = x_hat.view(batch_size, 1, 28, 28)
 
         return images
+
+    def generate_images_style_match(self, labels, image):
+        _, z_style = self.forward_encoder(image)
+        return self.generate_images(labels, z_style=z_style)
+        
