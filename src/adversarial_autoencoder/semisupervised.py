@@ -495,7 +495,7 @@ class SemiSupervisedAdversarialAutoencoder(nn.Module):
                 # 2) Latent regularisation phase (GAN)  – BOTH batches
                 # =================================================
 
-                # ---- categorical discriminator ----
+                # ---- cat adv update ----
                 z_real_cat = self.sample_latent_prior_categorical(x_u.size(0))
                 d_real_cat = self.adv_loss(
                     self.discriminator_categorical(z_real_cat),
@@ -510,7 +510,16 @@ class SemiSupervisedAdversarialAutoencoder(nn.Module):
                 (d_real_cat + d_fake_cat).backward()
                 self.disc_cat_opt.step()
 
-                # ---- gaussian discriminator update ----
+
+                g_cat = self.adv_loss(
+                    self.discriminator_categorical(self.forward_encoder(x_u)[0]),
+                    torch.ones(x_u.size(0), device=self.device))
+                
+                self.gen_cat_opt.zero_grad()
+                g_cat.backward()
+                self.gen_cat_opt.step()
+
+                # ---- style adv update ----
                 z_real_sty = self.sample_latent_prior_gaussian(x_u.size(0), prior_std)
                 d_real_sty = self.adv_loss(
                     self.discriminator_style(z_real_sty),
@@ -525,19 +534,7 @@ class SemiSupervisedAdversarialAutoencoder(nn.Module):
                 (d_real_sty + d_fake_sty).backward()
                 self.disc_style_opt.step()
 
-                # ---- generator (encoder) update -----
-
-                set_requires_grad(self.discriminator_categorical, False)
-                set_requires_grad(self.discriminator_style,       False)
-
-                g_cat = self.adv_loss(
-                    self.discriminator_categorical(self.forward_encoder(x_u)[0]),
-                    torch.ones(x_u.size(0), device=self.device))
-                
-                self.gen_cat_opt.zero_grad()
-                g_cat.backward()
-                self.gen_cat_opt.step()
-
+    
                 g_sty = self.adv_loss(
                     self.discriminator_style(self.forward_encoder(x_u)[1]),
                     torch.ones(x_u.size(0), device=self.device))
@@ -546,8 +543,6 @@ class SemiSupervisedAdversarialAutoencoder(nn.Module):
                 g_sty.backward()
                 self.gen_style_opt.step()
 
-                set_requires_grad(self.discriminator_categorical, True)
-                set_requires_grad(self.discriminator_style,       True)
 
                 # =================================================
                 # 3) Semi-supervised classification - only labeled samples
