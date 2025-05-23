@@ -5,6 +5,7 @@ import torch.optim as optim
 import torch.nn.functional as F
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
+from itertools import cycle
 from adversarial import Encoder, Decoder, Discriminator, weights_init
 import csv
 import os
@@ -208,7 +209,15 @@ class SemiSupervisedAdversarialAutoencoder(nn.Module):
         return F.one_hot(labels, num_classes=latent_dim).float().to(self.device)
 
 
-    def train_mbgd(self, train_loader, val_loader, epochs, result_folder: str, prior_std=5.0, add_gaussian_noise = False):
+    def train_mbgd(
+        self, 
+        train_loader, 
+        val_loader, 
+        epochs, 
+        result_folder: str, 
+        prior_std=5.0, 
+        add_gaussian_noise = False
+    ):
 
         os.makedirs(result_folder, exist_ok=True)
         with open(f'{result_folder}/train_log.csv', 'w', newline='') as f:
@@ -218,38 +227,37 @@ class SemiSupervisedAdversarialAutoencoder(nn.Module):
         epoch_counter = 0
         for epoch in range(epochs):
             
-            # adjust this if your experiment does different dynamic LRs
-            # if epoch == 50:
-            #     self.recon_opt.param_groups[0]['lr'] = 0.001
-            #     self.semi_supervised_opt.param_groups[0]['lr'] = 0.01
-            #     self.gen_style_opt.param_groups[0]['lr'] = 0.01
-            #     self.gen_cat_opt.param_groups[0]['lr'] = 0.01
-            #     self.disc_style_opt.param_groups[0]['lr'] = 0.01
-            #     self.disc_cat_opt.param_groups[0]['lr'] = 0.01
-                
-            # elif epoch == 1000:
-            #     self.recon_opt.param_groups[0]['lr'] = 0.0001
-            #     self.semi_supervised_opt.param_groups[0]['lr'] = 0.001
-            #     self.gen_style_opt.param_groups[0]['lr'] = 0.001
-            #     self.gen_cat_opt.param_groups[0]['lr'] = 0.001
-            #     self.disc_style_opt.param_groups[0]['lr'] = 0.001
-            #     self.disc_cat_opt.param_groups[0]['lr'] = 0.001
-
             if epoch == 50:
-                self.recon_opt.param_groups[0]['lr'] = 0.0001
-                self.semi_supervised_opt.param_groups[0]['lr'] = 0.0001
-                self.gen_style_opt.param_groups[0]['lr'] = 0.0001
-                self.gen_cat_opt.param_groups[0]['lr'] = 0.0001
-                self.disc_style_opt.param_groups[0]['lr'] = 0.0001
-                self.disc_cat_opt.param_groups[0]['lr'] = 0.0001
+                self.recon_opt.param_groups[0]['lr'] = 0.001
+                self.semi_supervised_opt.param_groups[0]['lr'] = 0.01
+                self.gen_style_opt.param_groups[0]['lr'] = 0.01
+                self.gen_cat_opt.param_groups[0]['lr'] = 0.01
+                self.disc_style_opt.param_groups[0]['lr'] = 0.01
+                self.disc_cat_opt.param_groups[0]['lr'] = 0.01
                 
             elif epoch == 1000:
-                self.recon_opt.param_groups[0]['lr'] = 0.00001
-                self.semi_supervised_opt.param_groups[0]['lr'] = 0.00001
-                self.gen_style_opt.param_groups[0]['lr'] = 0.00001
-                self.gen_cat_opt.param_groups[0]['lr'] = 0.00001
-                self.disc_style_opt.param_groups[0]['lr'] = 0.00001
-                self.disc_cat_opt.param_groups[0]['lr'] = 0.00001
+                self.recon_opt.param_groups[0]['lr'] = 0.0001
+                self.semi_supervised_opt.param_groups[0]['lr'] = 0.001
+                self.gen_style_opt.param_groups[0]['lr'] = 0.001
+                self.gen_cat_opt.param_groups[0]['lr'] = 0.001
+                self.disc_style_opt.param_groups[0]['lr'] = 0.001
+                self.disc_cat_opt.param_groups[0]['lr'] = 0.001
+
+            # if epoch == 50:
+            #     self.recon_opt.param_groups[0]['lr'] = 0.0001
+            #     self.semi_supervised_opt.param_groups[0]['lr'] = 0.0001
+            #     self.gen_style_opt.param_groups[0]['lr'] = 0.0001
+            #     self.gen_cat_opt.param_groups[0]['lr'] = 0.0001
+            #     self.disc_style_opt.param_groups[0]['lr'] = 0.0001
+            #     self.disc_cat_opt.param_groups[0]['lr'] = 0.0001
+                
+            # elif epoch == 1000:
+            #     self.recon_opt.param_groups[0]['lr'] = 0.00001
+            #     self.semi_supervised_opt.param_groups[0]['lr'] = 0.00001
+            #     self.gen_style_opt.param_groups[0]['lr'] = 0.00001
+            #     self.gen_cat_opt.param_groups[0]['lr'] = 0.00001
+            #     self.disc_style_opt.param_groups[0]['lr'] = 0.00001
+            #     self.disc_cat_opt.param_groups[0]['lr'] = 0.00001
 
 
             total_recon_loss = 0
@@ -262,6 +270,7 @@ class SemiSupervisedAdversarialAutoencoder(nn.Module):
             total_gen_cat_loss = 0
 
             self.train()
+            
             loop = tqdm(train_loader, desc=f"Epoch [{epoch+1}/{epochs}]", leave=False)
             for batch_idx, (x, y) in enumerate(loop, start=1):
                 x, y = x.to(self.device), y.to(self.device)
@@ -319,6 +328,7 @@ class SemiSupervisedAdversarialAutoencoder(nn.Module):
                 gen_style_loss.backward()
                 self.gen_style_opt.step()
 
+
                 # === SEMI-SUPERVISED CLASSIFICATION ===
                 
                 # forward without softmax, since cross entropy already implements that
@@ -336,6 +346,7 @@ class SemiSupervisedAdversarialAutoencoder(nn.Module):
                 total_disc_style_loss      += (d_real_loss_style + d_fake_loss_style).item()
                 total_gen_style_loss       += gen_style_loss.item()
                 total_semi_supervised_loss += semi_supervised_loss.item()
+            
 
                 # update tqdm display with current batch averages
                 loop.set_postfix({
@@ -390,6 +401,216 @@ class SemiSupervisedAdversarialAutoencoder(nn.Module):
                 self.save_weights(path_prefix=f'{result_folder}/weights_epoch_{epoch_counter}/weights')
 
             self.save_weights(path_prefix=f'{result_folder}/weights')
+
+    def train_mbgd_2(
+        self,
+        train_labeled_loader,
+        val_loader,
+        epochs,
+        result_folder: str,
+        prior_std=5.0,
+        add_gaussian_noise=False,
+        train_unlabeled_loader=None,
+    ):
+        os.makedirs(result_folder, exist_ok=True)
+        with open(f'{result_folder}/train_log.csv', 'w', newline='') as f:
+            csv.writer(f).writerow(
+                ['epoch', 'Recon_U', 'Recon_L', 'SemiSup',
+                'Disc_Cat', 'Gen_Cat', 'Disc_Sty', 'Gen_Sty']
+            )
+
+        if train_unlabeled_loader is None:
+            train_unlabeled_loader = train_labeled_loader
+
+        unlabeled_iter = cycle(train_unlabeled_loader)   # endless
+
+        for epoch in range(epochs):
+
+            # if epoch == 50:
+            #     self.recon_opt.param_groups[0]['lr']           = 0.001
+            #     self.semi_supervised_opt.param_groups[0]['lr'] = 0.01
+            #     self.gen_style_opt.param_groups[0]['lr']       = 0.01
+            #     self.gen_cat_opt.param_groups[0]['lr']         = 0.01
+            #     self.disc_style_opt.param_groups[0]['lr']      = 0.01
+            #     self.disc_cat_opt.param_groups[0]['lr']        = 0.01
+            # elif epoch == 1000:
+            #     self.recon_opt.param_groups[0]['lr']           = 0.0001
+            #     self.semi_supervised_opt.param_groups[0]['lr'] = 0.001
+            #     self.gen_style_opt.param_groups[0]['lr']       = 0.001
+            #     self.gen_cat_opt.param_groups[0]['lr']         = 0.001
+            #     self.disc_style_opt.param_groups[0]['lr']      = 0.001
+            #     self.disc_cat_opt.param_groups[0]['lr']        = 0.001
+
+
+            if epoch == 50:
+                self.recon_opt.param_groups[0]['lr'] = 0.0001
+                self.semi_supervised_opt.param_groups[0]['lr'] = 0.0001
+                self.gen_style_opt.param_groups[0]['lr'] = 0.0001
+                self.gen_cat_opt.param_groups[0]['lr'] = 0.0001
+                self.disc_style_opt.param_groups[0]['lr'] = 0.0001
+                self.disc_cat_opt.param_groups[0]['lr'] = 0.0001
+                
+            elif epoch == 1000:
+                self.recon_opt.param_groups[0]['lr'] = 0.00001
+                self.semi_supervised_opt.param_groups[0]['lr'] = 0.00001
+                self.gen_style_opt.param_groups[0]['lr'] = 0.00001
+                self.gen_cat_opt.param_groups[0]['lr'] = 0.00001
+                self.disc_style_opt.param_groups[0]['lr'] = 0.00001
+                self.disc_cat_opt.param_groups[0]['lr'] = 0.00001
+
+            sums = dict(recon_u=0, recon_l=0, cls=0,
+                        d_cat=0, g_cat=0, d_sty=0, g_sty=0)
+
+            self.train()
+            loop = tqdm(train_labeled_loader, desc=f"Epoch [{epoch+1}/{epochs}]", leave=False)
+
+            for batch_idx, (x_l, y_l) in enumerate(loop, 1):
+
+                # ---------- fetch one unlabeled batch ----------
+                x_u, _ = next(unlabeled_iter)
+
+                x_l, y_l = x_l.to(self.device), y_l.to(self.device)
+                x_u      = x_u.to(self.device)
+
+                # optional Gaussian noise
+                x_l_target = x_l.clone()
+                x_u_target = x_u.clone()
+                if add_gaussian_noise:
+                    x_l = x_l + torch.randn_like(x_l) * 0.3
+                    x_u = x_u + torch.randn_like(x_u) * 0.3
+
+                # =================================================
+                # 1) Reconstruction phase  - LABELED + UNLABELED
+                # =================================================
+                x_hat_u = self.forward_reconstruction(x_u)
+                loss_rec_u = self.recon_loss(x_hat_u, x_u_target)
+                loss_rec_l = self.recon_loss(self.forward_reconstruction(x_l), x_l_target)
+                loss_rec = loss_rec_u + loss_rec_l
+
+                self.recon_opt.zero_grad()
+                loss_rec.backward()
+                self.recon_opt.step()
+
+                # =================================================
+                # 2) Latent regularisation phase (GAN)  – BOTH batches
+                # =================================================
+
+                # ---- categorical discriminator ----
+                z_real_cat = self.sample_latent_prior_categorical(x_u.size(0))
+                d_real_cat = self.adv_loss(
+                    self.discriminator_categorical(z_real_cat),
+                    torch.ones(x_u.size(0), device=self.device))
+                
+                z_fake_cat, _ = self.forward_encoder(x_u)
+                d_fake_cat = self.adv_loss(
+                    self.discriminator_categorical(z_fake_cat.detach()),
+                    torch.zeros(x_u.size(0), device=self.device))
+
+                self.disc_cat_opt.zero_grad()
+                (d_real_cat + d_fake_cat).backward()
+                self.disc_cat_opt.step()
+
+                # ---- gaussian discriminator update ----
+                z_real_sty = self.sample_latent_prior_gaussian(x_u.size(0), prior_std)
+                d_real_sty = self.adv_loss(
+                    self.discriminator_style(z_real_sty),
+                    torch.ones(x_u.size(0), device=self.device))
+                
+                _, z_fake_sty = self.forward_encoder(x_u)
+                d_fake_sty = self.adv_loss(
+                    self.discriminator_style(z_fake_sty.detach()),
+                    torch.zeros(x_u.size(0), device=self.device))
+
+                self.disc_style_opt.zero_grad()
+                (d_real_sty + d_fake_sty).backward()
+                self.disc_style_opt.step()
+
+                # ---- generator (encoder) update -----
+
+                set_requires_grad(self.discriminator_categorical, False)
+                set_requires_grad(self.discriminator_style,       False)
+
+                g_cat = self.adv_loss(
+                    self.discriminator_categorical(self.forward_encoder(x_u)[0]),
+                    torch.ones(x_u.size(0), device=self.device))
+                
+                self.gen_cat_opt.zero_grad()
+                g_cat.backward()
+                self.gen_cat_opt.step()
+
+                g_sty = self.adv_loss(
+                    self.discriminator_style(self.forward_encoder(x_u)[1]),
+                    torch.ones(x_u.size(0), device=self.device))
+                
+                self.gen_style_opt.zero_grad()
+                g_sty.backward()
+                self.gen_style_opt.step()
+
+                set_requires_grad(self.discriminator_categorical, True)
+                set_requires_grad(self.discriminator_style,       True)
+
+                # =================================================
+                # 3) Semi-supervised classification - only labeled samples
+                # =================================================
+
+                logits_cat, _ = self.forward_no_softmax(x_l)
+                loss_cls = self.semi_supervised_loss(logits_cat, y_l)
+
+                self.semi_supervised_opt.zero_grad()
+                loss_cls.backward()
+                self.semi_supervised_opt.step()
+
+                sums['recon_u'] += loss_rec_u.item()
+                sums['recon_l'] += loss_rec_l.item()
+                sums['cls']     += loss_cls.item()
+                sums['d_cat']   += (d_real_cat + d_fake_cat).item()
+                sums['g_cat']   += g_cat.item()
+                sums['d_sty']   += (d_real_sty + d_fake_sty).item()
+                sums['g_sty']   += g_sty.item()
+
+                loop.set_postfix({
+                    'Recon_U': sums['recon_u']/batch_idx,
+                    'Recon_L': sums['recon_l']/batch_idx,
+                    'SemiSup': sums['cls']    /batch_idx,
+                    'Disc_Cat':sums['d_cat']  /batch_idx,
+                    'Gen_Cat': sums['g_cat']  /batch_idx,
+                    'Disc_Sty':sums['d_sty']  /batch_idx,
+                    'Gen_Sty': sums['g_sty']  /batch_idx
+                })
+
+            n = len(train_labeled_loader)
+            avg = {k: v/n for k,v in sums.items()}
+            print(
+                f"Epoch {epoch+1}/{epochs} — "
+                f"Recon_U: {avg['recon_u']:.4f}, Recon_L: {avg['recon_l']:.4f}, "
+                f"SemiSup: {avg['cls']:.4f}, "
+                f"Disc_Cat: {avg['d_cat']:.4f}, Gen_Cat: {avg['g_cat']:.4f}, "
+                f"Disc_Sty: {avg['d_sty']:.4f}, Gen_Sty: {avg['g_sty']:.4f}"
+            )
+
+            with open(f'{result_folder}/train_log.csv', 'a', newline='') as f:
+                csv.writer(f).writerow(
+                    [epoch+1, avg['recon_u'], avg['recon_l'], avg['cls'],
+                    avg['d_cat'], avg['g_cat'], avg['d_sty'], avg['g_sty']]
+                )
+
+            self.eval()
+            correct = total = 0
+            with torch.no_grad():
+                for vx, vy in val_loader:
+                    vx = vx.view(vx.size(0), -1).to(self.device)
+                    vy = vy.to(self.device)
+                    preds = self.forward_no_softmax(vx)[0].argmax(1)
+                    correct += (preds == vy).sum().item()
+                    total   += vy.size(0)
+            print(f"Validation Accuracy: {100*correct/total:.2f}%\n")
+
+            # checkpoints unchanged
+            if (epoch+1) % 50 == 0:
+                ckpt_dir = f'{result_folder}/weights_epoch_{epoch+1}'
+                os.makedirs(ckpt_dir, exist_ok=True)
+                self.save_weights(f'{ckpt_dir}/weights')
+            self.save_weights(f'{result_folder}/weights')
 
 
     def save_weights(self, path_prefix="aae_weights"):
@@ -501,4 +722,9 @@ class SemiSupervisedAdversarialAutoencoder(nn.Module):
     def generate_images_style_match(self, labels, image):
         _, z_style = self.forward_encoder(image)
         return self.generate_images(labels, z_style=z_style)
+    
+
+def set_requires_grad(module, flag: bool = True):
+    for p in module.parameters():
+        p.requires_grad_(flag)
         
