@@ -600,7 +600,6 @@ class SemiSupervisedAdversarialAutoencoder(nn.Module):
                     total   += vy.size(0)
             print(f"Validation Accuracy: {100*correct/total:.2f}%\n")
 
-            # checkpoints unchanged
             if (epoch+1) % 50 == 0:
                 ckpt_dir = f'{result_folder}/weights_epoch_{epoch+1}'
                 os.makedirs(ckpt_dir, exist_ok=True)
