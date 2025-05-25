@@ -86,6 +86,14 @@ def rescale_to_unit_interval(normalized_data, mean, std):
     Returns:
         rescaled_data (np.ndarray): Rescaled to [0, 1]
     """
+    if hasattr(normalized_data, 'detach'):
+        normalized_data=normalized_data.detach().cpu().numpy()
+    if hasattr(mean, 'detach'):
+        mean = mean.detach().cpu().numpy()
+    if hasattr(std, 'detach'):
+        std = std.detach().cpu().numpy()
+
+
     raw_data = normalized_data * std + mean
     min_val = np.min(raw_data, axis=1, keepdims=True)
     max_val = np.max(raw_data, axis=1, keepdims=True)

@@ -1,8 +1,9 @@
 # custom
 *.pth
 !src/adversarial_autoencoder/tmp_runs/*.pth
-experiments/data/
-
+!experiments/weights/supervised/*.pth
+src/adversarial_autoencoder/data/
+requirements.txt
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

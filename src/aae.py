@@ -102,6 +102,9 @@ class AdversarialAutoencoder(nn.Module):
                   f"Gen Loss: {total_gen_loss / len(data_loader):.4f}\t)"
             )
 
+            if (total_recon_loss / len(data_loader)) < 0.175:
+                break
+
 
     def generate_samples(self, n: int , prior_std: float = 5.0) -> torch.Tensor:
         with torch.no_grad():
