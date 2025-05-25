@@ -1,11 +1,12 @@
 from torch.utils.data import DataLoader, Subset
 from torchvision import transforms, datasets
-
+import torch
 
 def load_mnist_data(batch_size, num_samples):
     transform = transforms.Compose([
-        transforms.ToTensor(),  # Convert to [0, 1]
-        transforms.Lambda(lambda x: x.view(-1)),  # Flatten the image
+        transforms.PILToTensor(),                      # PIL → uint8 tensor
+        transforms.ConvertImageDtype(torch.float32),   # scale to 0-1 float
+        transforms.Lambda(lambda t: t.view(-1)),       # flatten 28×28 → 784
     ])
 
     # Load full MNIST training and test sets
