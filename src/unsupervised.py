@@ -124,7 +124,7 @@ class UnsupervisedAdversarialAutoencoder(nn.Module):
                 self.gen_cat_opt.param_groups[0]['lr'] = 0.1
                 self.disc_style_opt.param_groups[0]['lr'] = 0.1
                 self.disc_cat_opt.param_groups[0]['lr'] = 0.1
-            elif epoch == 49:
+            elif epoch == 50:
                 self.recon_opt.param_groups[0]['lr'] = 0.001
                 self.gen_style_opt.param_groups[0]['lr'] = 0.01
                 self.gen_cat_opt.param_groups[0]['lr'] = 0.01
@@ -265,8 +265,8 @@ class UnsupervisedAdversarialAutoencoder(nn.Module):
         """
         torch.save(self.encoder.state_dict(), f"{path_prefix}_encoder.pth")
         torch.save(self.decoder.state_dict(), f"{path_prefix}_decoder.pth")
-        torch.save(self.discriminator_categorical.state_dict(), f"{path_prefix}_disc_categorical.pth")
-        torch.save(self.discriminator_style.state_dict(), f"{path_prefix}_disc_style.pth")
+        torch.save(self.disc_cat.state_dict(), f"{path_prefix}_disc_categorical.pth")
+        torch.save(self.disc_style.state_dict(), f"{path_prefix}_disc_style.pth")
         print(f"Weights saved to {path_prefix}_*.pth")
 
     def load_weights(self, path_prefix="aae_weights"):
@@ -282,10 +282,10 @@ class UnsupervisedAdversarialAutoencoder(nn.Module):
         """
         self.encoder.load_state_dict(torch.load(f"{path_prefix}_encoder.pth", map_location=self.device))
         self.decoder.load_state_dict(torch.load(f"{path_prefix}_decoder.pth", map_location=self.device))
-        self.discriminator_categorical.load_state_dict(
+        self.disc_cat.load_state_dict(
             torch.load(f"{path_prefix}_disc_categorical.pth", map_location=self.device)
         )
-        self.discriminator_style.load_state_dict(
+        self.disc_style.load_state_dict(
             torch.load(f"{path_prefix}_disc_style.pth", map_location=self.device)
         )
         print(f"Weights loaded from {path_prefix}_*.pth")
