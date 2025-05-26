@@ -123,9 +123,6 @@ class AdversarialAutoencoder(nn.Module):
             writer.add_scalar("LR/Generator", self.gen_opt.param_groups[0]['lr'], epoch)
             writer.add_scalar("LR/Discriminator", self.disc_opt.param_groups[0]['lr'], epoch)
 
-            if (total_recon_loss / len(data_loader)) < 0.175:
-                break
-
         writer.close()
 
 
