@@ -74,7 +74,7 @@ def normalize_data(data, mean, std):
     return (data - mean) / std
 
 
-def rescale_to_unit_interval(normalized_data, mean, std):
+def rescale_to_unit_interval_individual(normalized_data, mean, std):
     """
     Invert normalization and rescale data to [0, 1] range.
 
@@ -98,3 +98,16 @@ def rescale_to_unit_interval(normalized_data, mean, std):
     min_val = np.min(raw_data, axis=1, keepdims=True)
     max_val = np.max(raw_data, axis=1, keepdims=True)
     return (raw_data - min_val) / (max_val - min_val)
+
+
+def rescale_to_unit_interval_global(unnormalized_data: np.ndarray) -> np.ndarray:
+    min_val = unnormalized_data.min()
+    max_val = unnormalized_data.max()
+
+    if max_val == min_val:
+        # Avoid division by zero if data is constant
+        return np.zeros_like(unnormalized_data)
+
+    return (unnormalized_data - min_val) / (max_val - min_val)
+
+

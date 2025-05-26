@@ -1,6 +1,7 @@
 
 import torch
 import torch.nn as nn
+from torch.utils.tensorboard import SummaryWriter
 
 from src.utils import load_weights, save_weights, weights_init
 from src.components import Encoder, Decoder, Discriminator
@@ -41,7 +42,14 @@ class AdversarialAutoencoder(nn.Module):
 
 
     # we assume gaussian prior, if you want to change this, change it.
-    def train_mbgd(self, data_loader, epochs, prior_std=5.0):
+    def train_mbgd(self,
+                   data_loader,
+                   epochs,
+                   prior_std=5.0,
+                   log_dir="./tmp_runs"
+    ):
+        writer = SummaryWriter(log_dir=log_dir)
+
         for epoch in range(epochs):
 
             # adjust this if your experiment does different dynamic LRs
@@ -96,14 +104,29 @@ class AdversarialAutoencoder(nn.Module):
                 total_disc_loss += disc_loss.item()
                 total_gen_loss += gen_loss.item()
 
+            avg_recon_loss = total_recon_loss / len(data_loader)
+            avg_disc_loss = total_disc_loss / len(data_loader)
+            avg_gen_loss = total_gen_loss / len(data_loader)
+
             print(f"Epoch ({epoch + 1}/{epochs})\t)"
-                  f"Recon Loss: {total_recon_loss / len(data_loader):.4f}\t)"
-                  f"Disc Loss: {total_disc_loss / len(data_loader):.4f}\t)"
-                  f"Gen Loss: {total_gen_loss / len(data_loader):.4f}\t)"
+                  f"Recon Loss: {avg_recon_loss:.4f}\t)"
+                  f"Disc Loss: {avg_disc_loss:.4f}\t)"
+                  f"Gen Loss: {avg_gen_loss:.4f}\t)"
             )
+
+            # === TensorBoard Logging ===
+            writer.add_scalar("Loss/Recon", avg_recon_loss, epoch)
+            writer.add_scalar("Loss/Discriminator", avg_disc_loss, epoch)
+            writer.add_scalar("Loss/Generator", avg_gen_loss, epoch)
+
+            writer.add_scalar("LR/Recon", self.recon_opt.param_groups[0]['lr'], epoch)
+            writer.add_scalar("LR/Generator", self.gen_opt.param_groups[0]['lr'], epoch)
+            writer.add_scalar("LR/Discriminator", self.disc_opt.param_groups[0]['lr'], epoch)
 
             if (total_recon_loss / len(data_loader)) < 0.175:
                 break
+
+        writer.close()
 
 
     def generate_samples(self, n: int , prior_std: float = 5.0) -> torch.Tensor:
