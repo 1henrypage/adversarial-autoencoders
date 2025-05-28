@@ -18,41 +18,57 @@ class LinearMaxOut(nn.Module):
         return torch.amax(out, dim=1)
 
 
-def gan_weights_init(m):
+def gan_weights_init_gen(m):
     if isinstance(m, nn.Linear):
         nn.init.uniform_(m.weight, -0.05, 0.05)
         nn.init.zeros_(m.bias)
 
+def gan_weights_init_disc(m):
+    if isinstance(m, nn.Linear):
+        nn.init.uniform_(m.weight, -0.005, 0.005)
+        nn.init.zeros_(m.bias)
+
 
 class GAN(nn.Module):
-    def __init__(self, latent_dim: int, input_size: int,  device: str):
+    def __init__(self,
+                 latent_dim: int,
+                 input_size: int,
+                 generator_hidden_dim: int,
+                 discriminator_hidden_dim: int,
+                 use_sigmoid_gen: bool,
+                 device: str):
         super().__init__()
         self.latent_dim = latent_dim
         self.input_size = input_size
+        self.generator_hidden_dim = generator_hidden_dim
+        self.discriminator_hidden_dim = discriminator_hidden_dim
         self.device = device
 
-        self.generator = nn.Sequential(
-            nn.Linear(latent_dim, 1200),
+        gen_layers = [
+            nn.Linear(latent_dim, generator_hidden_dim),
             nn.ReLU(),
-            nn.Linear(1200, 1200),
+            nn.Linear(generator_hidden_dim, generator_hidden_dim),
             nn.ReLU(),
-            nn.Linear(1200, input_size),
-            nn.Sigmoid()
-        )
+            nn.Linear(generator_hidden_dim, input_size)
+        ]
+        if use_sigmoid_gen:
+            gen_layers.append(nn.Sigmoid())
+
+        self.generator = nn.Sequential(*gen_layers)
 
         self.discriminator = nn.Sequential(
             nn.Dropout(0.2),
-            LinearMaxOut(input_size, 240, 5),
+            LinearMaxOut(input_size, discriminator_hidden_dim, 5),
             nn.Dropout(0.5),
-            LinearMaxOut(240, 240, 5),
+            LinearMaxOut(discriminator_hidden_dim, discriminator_hidden_dim, 5),
             nn.ReLU(),
             nn.Dropout(0.5),
-            nn.Linear(240, 1),
+            nn.Linear(discriminator_hidden_dim, 1),
             nn.Sigmoid()
         )
 
-        self.generator.apply(gan_weights_init)
-        self.discriminator.apply(gan_weights_init)
+        self.generator.apply(gan_weights_init_gen)
+        self.discriminator.apply(gan_weights_init_disc)
 
         self.generator.to(self.device)
         self.discriminator.to(self.device)
@@ -71,20 +87,29 @@ class GAN(nn.Module):
                 new_lr = max(lr * decay_factor, min_lr)
                 optim.param_groups[0]['lr'] = new_lr
 
+    def adjust_momentum(self, gen_opt, disc_opt, epoch, max_epoch, momentum, final_momentum):
+        alpha = min(max(epoch / max_epoch, 0.0), 1.0)
+        new_momentum = momentum * (1 - alpha) + final_momentum * alpha
+        for optim in [gen_opt, disc_opt]:
+            for group in optim.param_groups:
+                group['momentum'] = new_momentum
+
     def train_mbgd(self, data_loader,
                    learning_rate: float,
                    uniform_range: float,
                    min_lr: float,
                    decay_factor: float,
                    epochs: int,
+                   momentum: float = 0.5,
+                   final_momentum: float = 0.9,
+                   momentum_saturate: int = 100,
                    log_dir="./tmp_runs"
                    ):
 
-
         writer = SummaryWriter(log_dir=log_dir)
 
-        gen_opt = torch.optim.SGD(self.generator.parameters(), lr=learning_rate, momentum=0.5)
-        disc_opt = torch.optim.SGD(self.discriminator.parameters(), lr=learning_rate, momentum=0.5)
+        gen_opt = torch.optim.SGD(self.generator.parameters(), lr=learning_rate, momentum=momentum)
+        disc_opt = torch.optim.SGD(self.discriminator.parameters(), lr=learning_rate, momentum=momentum)
 
         for epoch in range(epochs):
             gen_loss_sum = 0
@@ -123,9 +148,13 @@ class GAN(nn.Module):
 
                 if batch_idx % 100 == 0:
                     print(f"[Epoch {epoch+1}/{epochs}] Batch {batch_idx} | "
-                          f"G Loss: {g_loss.item():.4f} | D Loss: {d_loss.item():.4f}")
+                          f"G Loss: {g_loss.item():.4f} | D Loss: {d_loss.item():.4f} | "
+                          f"LR: {disc_opt.param_groups[0]['lr']:.6f} | "
+                          f"Momentum: {disc_opt.param_groups[0]['momentum']:.4f}")
 
                 self.adjust_lr(gen_opt, disc_opt, min_lr, decay_factor)
+
+            self.adjust_momentum(gen_opt, disc_opt, epoch, momentum_saturate, momentum, final_momentum)
 
             avg_g = gen_loss_sum / len(data_loader)
             avg_d = disc_loss_sum / len(data_loader)
@@ -134,6 +163,7 @@ class GAN(nn.Module):
             writer.add_scalar("Loss/Discriminator", avg_d, epoch)
 
         writer.close()
+
 
 
     def save_weights(self, path_prefix="gan_weights"):

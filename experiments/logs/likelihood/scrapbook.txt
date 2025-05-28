@@ -2,3 +2,32 @@
 5000_aae_mnist_10000_samples_sigma_0.15= (np.float64(377.5285777643366), np.float64(3.5759262660148625))
 5000_aae_tfd_10000_samples_sigma_0.11104586060596347=(np.float64(2099.6178450312805), np.float64(7.336344901739025))
 2000_aae_tfd_10000_samples_sigma_0.11104586060596347=(np.float64(2096.620118086362), np.float64(7.304172582696534))
+300_gan_mnist_10000_samples_sigma_# 0.13861643358759645 =(np.float64(397.7332554443204), np.float64(4.662149497740721))
+300_gan_tfd_10000_samples_sigma_0.11104586060596347=(np.float64(2162.721767602233), np.float64(7.311285554510226))
+
+
+
+Evaluating sigma = 0.10000000000000002
+Sigma: 0.10000, Log-Likelihood: 291.09677
+Evaluating sigma = 0.10136988334196284
+Sigma: 0.10137, Log-Likelihood: 267.47965
+Evaluating sigma = 0.10275853248763152
+Sigma: 0.10276, Log-Likelihood: 265.34965
+Evaluating sigma = 0.10416620450662507
+Sigma: 0.10417, Log-Likelihood: 292.17228
+Evaluating sigma = 0.10559315999011624
+Sigma: 0.10559, Log-Likelihood: 314.13161
+Evaluating sigma = 0.10703966309907299
+Sigma: 0.10704, Log-Likelihood: 311.64210
+Evaluating sigma = 0.10850598161316032
+Sigma: 0.10851, Log-Likelihood: 341.17418
+Evaluating sigma = 0.10999238698031223
+Sigma: 0.10999, Log-Likelihood: 342.84273
+Evaluating sigma = 0.1114991543669828
+Sigma: 0.11150, Log-Likelihood: 359.67904
+Evaluating sigma = 0.11302656270908555
+Sigma: 0.11303, Log-Likelihood: 343.50712
+Evaluating sigma = 0.11457489476363046
+Sigma: 0.11457, Log-Likelihood: 346.01500
+Evaluating sigma = 0.11614443716106887
+Sigma: 0.11614, Log-Likelihood: 345.09897
