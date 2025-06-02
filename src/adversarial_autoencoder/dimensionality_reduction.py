@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import weakref
 
-from adversarial import Decoder, weights_init
+from aae import Decoder, weights_init
 
 from semisupervised import (
   SemiSupervisedAdversarialAutoencoder,
@@ -34,8 +34,11 @@ class DimensionalityReductionAAE(SemiSupervisedAdversarialAutoencoder):
 
         # W_C Head
         self.WC = nn.Parameter(torch.randn(
-            options.latent_dim_categorical, options.latent_dim_style
-            ))
+            options.latent_dim_categorical, 
+            options.latent_dim_style,
+            device=options.device
+            )
+        )
         
         self.decoder = Decoder(
             options.latent_dim_style, 
@@ -90,4 +93,26 @@ class DimensionalityReductionAAE(SemiSupervisedAdversarialAutoencoder):
             z_total = self._compose_latent(z_cat, style_z)
             x_hat = self.decoder(z_total)
             return x_hat.view(batch, 1, 28, 28)
+        
+    @torch.no_grad()
+    def embed(self, x: torch.Tensor, *, return_parts: bool = False):
+        """
+        Parameters
+        ----------
+        x : (B, C, H, W) tensor
+            A batch of input images.
+        return_parts : bool, default False
+            If True, also return (z_cat, z_style).
+
+        Returns
+        -------
+        z      : (B, latent_dim)  –  W_c·y  +  z_style
+        z_cat  : (B, K)           –  softmax/categorical part (optional)
+        z_style: (B, d_style)     –  style part (optional)
+        """
+        z_cat, z_style = self.forward_encoder(x)
+        z = self._compose_latent(z_cat, z_style)     # additive mix
+        if return_parts:
+            return z, z_cat, z_style
+        return z
         
