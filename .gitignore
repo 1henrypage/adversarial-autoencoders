@@ -177,11 +177,4 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 
-
-.ipynb_checkpoints
-
 experiments/data/MNIST/raw/
-data/MNIST/raw/
-
-*.DS_Store
-
