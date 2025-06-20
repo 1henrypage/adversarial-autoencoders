@@ -6,7 +6,8 @@ import torch.nn.functional as F
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 from itertools import cycle
-from adversarial import Encoder, Decoder, Discriminator, weights_init
+from .components import Encoder, Decoder, Discriminator
+from .utils import weights_init
 import csv
 import os
 
